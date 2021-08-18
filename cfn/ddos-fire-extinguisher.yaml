@@ -1,0 +1,2357 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      ProtectResourceArn:
+        default: The ARN of the Application Load Balancer or CloudFront Distribution
+      AthenaReportCreationRate:
+        default: cron rate to run Fire Extinguisher queries and public to S3
+      AutoAthenaLookBackExpression:
+        default: Presto interval expression of time.  used from now for automatic report generation. e.g. '1' day or '15' minutes https://prestodb.io/docs/current/functions/datetime.html#interval-functions
+      CFNLogicalResourceName:
+        default: Used to construct many resource names
+      RateBasedRuleValue:
+        default: Global rate based rule value
+      SourceIPAddressSource:
+        default: Define how to evaluate source IP from client.  For source IP, specify SOURCE_IP, otherwise this value is the name of the header evaulated, e.g. X-FORWARDED-FOR, TRUE-CLIENT-IP
+      RateBasedRuleValue:
+        default: Rule Rate based on source IP by header (e.g. XFF, True-Client-IP)
+      IPRateBasedRuleValue:
+        default: Rule Rate based on source IP directly
+      BlockCountryList:
+        default: Comma separated list of ISO 3166 international standard country codes. No Rate Limit https://www.iso.org/iso-3166-country-codes.html
+      CountryListRuleAction:
+        default:  Action for Countries specified on the block list
+      CountryListRBRRuleAction:
+        default:  Action for Countries specified on the block list with Rate Based
+      CountryRBRList:
+        default: Comma separated list of ISO 3166 international standard country codes. Rate Limited https://www.iso.org/iso-3166-country-codes.html
+      CountryListRuleRate:
+        default: For Countries to rate limit, specify the rate by source ip
+      UriValue:
+        default: Used for URI based query rule
+      URIRateBasedRuleValue:
+        default: Rate limit for specific URIs
+      AmazonIPReputationAction:
+        default: Block or Count based on Amazon Managed IP Reputation Rule
+      ReputationRateLimitValue:
+        default: Rate limit for poor reputation source IPs
+      AnonymousIPAction:
+        default:: Block or Count based on Amazon Managed Anonymous IP Rule
+      AnonymousRateLimitValue:
+        default: Rate limit for anonymous source IPs
+      ExcludeHostingProviderIP:
+        default: Block or count for Hosting Provider rule under Anonymous IP managed rule group. "Inspects for a list of IP addresses from hosting and cloud providers, which are less likely to source end-user traffic. Examples include cloud providers like AWS."
+      URIActions:
+        default:  Block or just count based login or search being a part of query path
+      ThirdPartyReputationAction:
+        default: Block or just count based on 3rd party IP Reputation lists.  List is updated every hour
+      SubscribeAndConfigureShieldAdvanced:
+        default: This will subscribe the account to Shield Advanced, configure contacts, and authorize AWS SRT access for this account
+      EmergencyContactEmail1:
+        default: E-mail address for contact 1
+      EmergencyContactEmail2:
+        default: E-mail address for contact 2
+      EmergencyContactPhone1:
+        default: Phone Number for contact 1, must be format +155 where 1 represents country code followed by 10 digit phone number
+      EmergencyContactPhone2:
+        default: Phone Number for contact 2, must be format +155 where 1 represents country code followed by 10 digit phone number
+      ConfirmSubscribeAndConfigureShieldAdvanced:
+        default: Confirming you want to subscribe to Shield Advanced
+      RateBaseRuleAction:
+        default: Action for Rate based rules to take when exceeded
+      CountryListRuleAction:
+        default:  Action to take for Countries specified on the block list
+      AuthorizeDRTAccess:
+        default: Create and authorize DRT role for WebACL and AWS WAF log access
+      RuleGroup1:
+        default: Optional - Existing Rule Group Arn to add to WebACL
+      RuleGroup2:
+        default: Optional - Existing Rule Group Arn to add to WebACL
+      RuleGroup3:
+        default: Optional - Existing Rule Group Arn to add to WebACL
+      RuleGroup4:
+        default: Optional - Existing Rule Group Arn to add to WebACL
+      RuleGroup5:
+        default: Optional - Existing Rule Group Arn to add to WebACL
+      BotControlRuleExcludeName:
+        default: Comma, separated list of  bots to label only
+      BotControlAction:
+        default: Bot Control global action, determines AMR default action
+      BotControlExcludeAction:
+        default: Action for bots that are not blocked by AMR
+      BotControlRateValue:
+        default: If Rate limiting is configured for excluded bots, request rate to use
+      CreateHealthChecks:
+        default: Should we create Amazon Route 53 health checks for provided resources
+    ParameterGroups:
+      -
+        Label:
+          default: "Critical Items"
+        Parameters:
+          - ProtectResourceArn
+          - CFNLogicalResourceName
+          - SourceIPAddressSource
+      -
+        Label:
+          default: "Blanket Rate Based Rule Options"
+        Parameters:
+          - RateBasedRuleValue
+
+          - IPRateBasedRuleValue
+          - RateBaseRuleAction
+      -
+        Label:
+          default: "IP Reputation Rule Options"
+        Parameters:
+          - AmazonIPReputationAction
+          - ThirdPartyReputationAction
+          - ReputationRateLimitValue
+      -
+        Label:
+          default: "Anonymous IP Rule Options"
+        Parameters:
+          - AnonymousIPAction
+          - ExcludeHostingProviderIP
+          - AnonymousRateLimitValue
+      -
+        Label:
+          default: "Source Country Rule Options "
+        Parameters:
+          - CountryListRuleAction
+          - BlockCountryList
+      -
+        Label:
+          default: "Rate limit by Source Country Rule Options"
+        Parameters:
+          - CountryListRBRRuleAction
+          - CountryRBRList
+          - CountryListRuleRate
+      -
+        Label:
+          default: "Bot Control Options"
+        Parameters:
+          - BotControlRuleExcludeName
+          - BotControlAction
+          - BotControlExcludeAction
+          - BotControlRateValue
+      -
+        Label:
+          default: "URI Rule Options"
+        Parameters:
+          - UriValue
+          - URIActions
+          - URIRateBasedRuleValue
+      -
+        Label:
+          default: "Shield Advanced Configurations"
+        Parameters:
+          - SubscribeAndConfigureShieldAdvanced
+          - EmergencyContactEmail1
+          - EmergencyContactEmail2
+          - EmergencyContactPhone1
+          - EmergencyContactPhone2
+          - AuthorizeDRTAccess
+          - CreateHealthChecks
+      -
+        Label:
+          default: "If you have not already subscribed, confirm you REALLY want to subscribe, if your organization does not already have Shield Advanced, you will be billed the base $3,000 fee for Shield Advanced plus usage"
+        Parameters:
+          - ConfirmSubscribeAndConfigureShieldAdvanced
+      -
+        Label:
+          default: AWS WAF WebACL Configurations
+        Parameters:
+          - RuleGroup1
+          - RuleGroup2
+          - RuleGroup3
+          - RuleGroup4
+          - RuleGroup5
+      -
+        Label:
+          default: Athena Query Configurations
+        Parameters:
+          - AutoAthenaLookBackExpression
+          - AthenaReportCreationRate
+Parameters:
+  CreateHealthChecks:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+  Prefix:
+    Type: String
+    Default: ddos-fire-extinguisher
+  AutoAthenaLookBackExpression:
+    Type: String
+    Default: \'1\' day
+  AthenaReportCreationRate:
+    Type: String
+    Default: rate(15 minutes)
+  AuthorizeDRTAccess:
+    Type: String
+    Default: Disabled
+    AllowedValues:
+      - Disabled
+      - Enabled
+  RateBasedRuleValue:
+      Type: String
+      Default: 5000
+  SourceIPAddressSource:
+      Type: String
+      Default: SOURCE_IP
+  RateBaseRuleAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  CountryListRuleAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  CountryListRBRRuleAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  BlockCountryList:
+    Type: CommaDelimitedList
+    Default: RU,LY
+  CountryRBRList:
+    Type: CommaDelimitedList
+    Default: AF,AR
+  CountryListRuleRate:
+    Type: Number
+    Default: 100
+    MinValue: 100
+    MaxValue: 20000000
+  SubscribeAndConfigureShieldAdvanced:
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  ConfirmSubscribeAndConfigureShieldAdvanced:
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+  EmergencyContactEmail1:
+    Type: String
+    Default: example@example.com
+  EmergencyContactEmail2:
+    Type: String
+    Default: example+1@example.com
+  EmergencyContactPhone1:
+    Type: String
+    Default: '+15555555555'
+    AllowedPattern: ^\+[0-9]{11}
+  EmergencyContactPhone2:
+    Type: String
+    Default: '+15555555555'
+    AllowedPattern: ^\+[0-9]{11}
+  CFNLogicalResourceName:
+    Type: String
+    Default: fireextinguisher
+    MaxLength: 24
+    AllowedPattern: "[a-z0-9\\-]+"
+  ProtectResourceArn:
+    Type: CommaDelimitedList
+  UriValue:
+    Type: String
+    Default: /login
+  URIRateBasedRuleValue:
+    Type: Number
+    Default: 5000
+    MinValue: 100
+    MaxValue: 20000000
+  AmazonIPReputationAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  ReputationRateLimitValue:
+    Type: Number
+    Default: 100
+    MinValue: 100
+    MaxValue: 20000000
+  AnonymousIPAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  AnonymousRateLimitValue:
+    Type: Number
+    Default: 100
+    MinValue: 100
+    MaxValue: 20000000
+  ExcludeHostingProviderIP:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - RuleAction
+      - Count
+  URIActions:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  ThirdPartyReputationAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Block
+      - Count
+  RuleGroup1:
+    Type: String
+    Default: <na>
+  RuleGroup2:
+    Type: String
+    Default: <na>
+  RuleGroup3:
+    Type: String
+    Default: <na>
+  RuleGroup4:
+    Type: String
+    Default: <na>
+  RuleGroup5:
+    Type: String
+    Default: <na>
+  BotControlRuleExcludeName:
+    Type: String
+    Default: <na>
+  BotControlAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Count
+      - Block
+      - No
+  BotControlExcludeAction:
+    Type: String
+    Default: Count
+    AllowedValues:
+      - Count
+      - RateLimit
+  BotControlRateValue:
+    Type: Number
+    Default: 500
+    MinValue: 100
+    MaxValue: 20000000
+
+Conditions:
+  BotControlExcludeActionFlag: !Equals [!Ref BotControlExcludeAction, 'RateLimit' ]
+  BotControlExcludeFlag: !Not [!Equals [!Ref BotControlRuleExcludeName, "<na>" ] ]
+  SourceIPForClientIP: !Equals [!Ref SourceIPAddressSource, "SOURCE_IP"]
+  IPHeaderForClientIP: !Not [!Equals [!Ref SourceIPAddressSource, "SOURCE_IP" ] ]
+  AuthorizeDRTAccessFlag: !Equals [!Ref AuthorizeDRTAccess, 'Enabled']
+  CountHostingProviderIPFlag: !Equals [!Ref ExcludeHostingProviderIP, 'Count']
+  BotControlFlag: !Equals [!Ref BotControlAction, "Block"]
+  RegionalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'elasticloadbalancing']
+  GlobalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'cloudfront']
+  AmazonIPReputationFlag: !Equals [!Ref AmazonIPReputationAction, 'Block']
+  AnonymousIPFlag: !Equals [!Ref AnonymousIPAction, 'Block']
+  URIActionFlag: !Equals [!Ref URIActions, 'Block']
+  CountryListRuleFlag: !Equals [!Ref CountryListRuleAction, 'Block']
+  CountryListRBRRuleFlag: !Equals [!Ref CountryListRBRRuleAction, 'Block']
+  RateBaseRuleActionFlag: !Equals [!Ref RateBaseRuleAction, 'Block']
+  ThirdPartyReputationFlag: !Equals [!Ref ThirdPartyReputationAction, 'Block']
+  SubscribeShield: !Equals [!Ref SubscribeAndConfigureShieldAdvanced, 'true']
+  RuleGroup1Flag: !Not [!Equals [!Ref RuleGroup1, '<na>']]
+  RuleGroup2Flag: !Not [!Equals [!Ref RuleGroup2, '<na>']]
+  RuleGroup3Flag: !Not [!Equals [!Ref RuleGroup3, '<na>']]
+  RuleGroup4Flag: !Not [!Equals [!Ref RuleGroup4, '<na>']]
+  RuleGroup5Flag: !Not [!Equals [!Ref RuleGroup5, '<na>']]
+  CreateHealthChecksFlag: !And
+  - !Equals [!Ref CreateHealthChecks, true]
+  - !Condition SubscribeShield
+Resources:
+  IPSetAllowListIPv4A:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv4-${CFNLogicalResourceName}-A'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetAllowListIPv4B:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv4-${CFNLogicalResourceName}-B'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetAllowListIPv4C:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv4-${CFNLogicalResourceName}-C'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetAllowListIPv6A:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv6-${CFNLogicalResourceName}-A'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetAllowListIPv6B:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv6-${CFNLogicalResourceName}-B'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetAllowListIPv6C:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'AllowListIPv6-${CFNLogicalResourceName}-C'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv4A:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv4-${CFNLogicalResourceName}-A'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv4B:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv4-${CFNLogicalResourceName}-B'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv4C:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv4-${CFNLogicalResourceName}-C'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv6A:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv6-${CFNLogicalResourceName}-A'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv6B:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv6-${CFNLogicalResourceName}-B'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPSetBlockListIPv6C:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPSetBlockListIPv6-${CFNLogicalResourceName}-C'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPReputationListsSetIPV4:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPReputationListsSetIPV4-${CFNLogicalResourceName}'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  IPReputationListsSetIPV6:
+    Type: 'AWS::WAFv2::IPSet'
+    Properties:
+      Description: Allow List IPv4
+      Name: !Sub 'IPReputationListsSetIPV6-${CFNLogicalResourceName}'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      IPAddressVersion: IPV4
+      Addresses:
+        - 1.2.1.1/32
+  FireExtinguisherWAFWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub 'SRT-FireExtinguisher-${CFNLogicalResourceName}'
+      Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
+      Description: AWS SRT FireExtinguisher WAFWebACL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: ExampleWebACLMetric
+      Rules:
+        - Name: AllowListedCIDRs
+          Priority: 0
+          Statement:
+            OrStatement:
+              Statements:
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv4A.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv4B.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv4C.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv6A.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv6B.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetAllowListIPv6C.Arn
+          Action:
+            Allow: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSWAFSecurityAutomationsWhitelistRule
+        - Name: DenyListedCIDRs
+          Priority: 1
+          Statement:
+            OrStatement:
+              Statements:
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv4A.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv4B.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv4C.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv6A.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv6B.Arn
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPSetBlockListIPv6C.Arn
+          Action:
+            Block: {}
+          RuleLabels:
+            - Name: CustomerBlockList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSWAFSecurityAutomationsBlocklistRule
+        - !If
+            - RuleGroup1Flag
+            -
+              Name: !Select [2, !Split ["/", !Ref RuleGroup1]]
+              Priority: 3
+              Statement:
+                RuleGroupReferenceStatement:
+                  Arn: !Ref RuleGroup1
+              OverrideAction:
+                None: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: !Select [2, !Split ["/", !Ref RuleGroup1]]
+            - !Ref AWS::NoValue
+        - !If
+            - RuleGroup2Flag
+            -
+              Name: !Select [2, !Split ["/", !Ref RuleGroup2]]
+              Priority: 4
+              Statement:
+                RuleGroupReferenceStatement:
+                  Arn: !Ref RuleGroup1
+              OverrideAction:
+                None: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: !Select [2, !Split ["/", !Ref RuleGroup2]]
+            - !Ref AWS::NoValue
+        - !If
+            - RuleGroup3Flag
+            -
+              Name: !Select [2, !Split ["/", !Ref RuleGroup3]]
+              Priority: 5
+              Statement:
+                RuleGroupReferenceStatement:
+                  Arn: !Ref RuleGroup1
+              OverrideAction:
+                None: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: !Select [2, !Split ["/", !Ref RuleGroup3]]
+            - !Ref AWS::NoValue
+        - !If
+            - RuleGroup4Flag
+            -
+              Name: !Select [2, !Split ["/", !Ref RuleGroup4]]
+              Priority: 6
+              Statement:
+                RuleGroupReferenceStatement:
+                  Arn: !Ref RuleGroup1
+              OverrideAction:
+                None: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: !Select [2, !Split ["/", !Ref RuleGroup4]]
+            - !Ref AWS::NoValue
+        - !If
+            - RuleGroup5Flag
+            -
+              Name: !Select [2, !Split ["/", !Ref RuleGroup5]]
+              Priority: 7
+              Statement:
+                RuleGroupReferenceStatement:
+                  Arn: !Ref RuleGroup1
+              OverrideAction:
+                None: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: !Select [2, !Split ["/", !Ref RuleGroup5]]
+            - !Ref AWS::NoValue
+        - Name: AWS-AWSManagedRulesAmazonIpReputationList
+          Priority: 8
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          OverrideAction:
+            None: !If [AmazonIPReputationFlag, {}, !Ref AWS::NoValue]
+            Count: !If [AmazonIPReputationFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AWSManagedRulesAmazonIpReputationList
+        - Name: Spamhaus-ToRProject-EmergingThreats-Block
+          Priority: 9
+          Statement:
+            OrStatement:
+              Statements:
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPReputationListsSetIPV4.Arn
+                  IPSetForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                        Position: ANY
+                      - !Ref "AWS::NoValue"
+              - IPSetReferenceStatement:
+                  Arn: !GetAtt IPReputationListsSetIPV6.Arn
+                  IPSetForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                        Position: ANY
+                      - !Ref "AWS::NoValue"
+          Action:
+            Block: !If [ThirdPartyReputationFlag, {}, !Ref AWS::NoValue]
+            Count: !If [ThirdPartyReputationFlag, !Ref AWS::NoValue, {}]
+          RuleLabels:
+            - Name: 3rdPartyReputationList
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: 3rdPartyIPreputationBlock
+        - Name: ReputationRateLimit
+          Priority: 10
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref ReputationRateLimitValue
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+              ScopeDownStatement:
+                OrStatement:
+                  Statements:
+                  - LabelMatchStatement:
+                      Scope: LABEL
+                      Key: awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList
+                  - LabelMatchStatement:
+                      Scope: LABEL
+                      Key: 3rdPartyReputationList
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: ReputationRateLimit
+
+        - Name: AWS-AWSManagedRulesAnonymousIpList
+          Priority: 15
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAnonymousIpList
+              ExcludedRules:
+                !If
+                - CountHostingProviderIPFlag
+                -
+                  - Name: !If [CountHostingProviderIPFlag, "HostingProviderIPList", !Ref "AWS::NoValue"]
+                - !Ref AWS::NoValue
+          OverrideAction:
+            None: !If [AnonymousIPFlag, {}, !Ref AWS::NoValue]
+            Count: !If [AnonymousIPFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AWSManagedRulesAnonymousIpList
+        - Name: AnonymousRateLimit
+          Priority: 16
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref AnonymousRateLimitValue
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+              ScopeDownStatement:
+                LabelMatchStatement:
+                  Scope: LABEL
+                  Key: awswaf:managed:aws:amazon-ip-list:AWSManagedRulesAnonymousIpList
+          Action:
+            Block: {}
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AnonymousRateLimit
+        - Name: Country-List-Block
+          Priority: 20
+          Statement:
+            GeoMatchStatement:
+              CountryCodes:
+                !Ref BlockCountryList
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+          Action:
+            Block: !If [CountryListRuleFlag, {}, !Ref AWS::NoValue]
+            Count: !If [CountryListRuleFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: OFAC-Geo-Block-No-RBR
+        - Name: Country-List-Rate-Based-Rule
+          Priority: 21
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref CountryListRuleRate
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+              ScopeDownStatement:
+                GeoMatchStatement:
+                  CountryCodes:
+                    !Ref CountryRBRList
+          Action:
+            Block: !If [CountryListRBRRuleFlag, {}, !Ref AWS::NoValue]
+            Count: !If [CountryListRBRRuleFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: OFAC-Geo-Block-RBR
+        - Name: Blanket-Rate-Based-Rule
+          Priority: 22
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref RateBasedRuleValue
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+          Action:
+            Block: !If [RateBaseRuleActionFlag, {}, !Ref AWS::NoValue]
+            Count: !If [RateBaseRuleActionFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: Global-RBR
+        - Name: URI-Rate-Based-Rule
+          Priority: 23
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref URIRateBasedRuleValue
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+              ScopeDownStatement:
+                ByteMatchStatement:
+                  SearchString: !Ref UriValue
+                  FieldToMatch:
+                    UriPath: {}
+                  TextTransformations:
+                  - Priority: 0
+                    Type: CMD_LINE
+                  PositionalConstraint: CONTAINS_WORD
+          Action:
+            Block: !If [URIActionFlag, {}, !Ref AWS::NoValue]
+            Count: !If [URIActionFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: Login-Search-RBR
+        - Name: AWS-AWSManagedRulesBotControlRuleSet
+          Priority: 30
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesBotControlRuleSet
+              ExcludedRules:
+                !If
+                - BotControlExcludeFlag
+                - !GetAtt BotControlTransformCall.JSON
+                - !Ref AWS::NoValue
+          OverrideAction:
+            None: !If [BotControlFlag, {}, !Ref AWS::NoValue]
+            Count: !If [BotControlFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: AWS-AWSManagedRulesBotControlRuleSet
+        - Name: BotRateBasedRule
+          Priority: 31
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref BotControlRateValue
+              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+              ForwardedIPConfig:
+                !If
+                  - IPHeaderForClientIP
+                  -
+                    HeaderName: !Ref SourceIPAddressSource
+                    FallbackBehavior: MATCH
+                  - !Ref "AWS::NoValue"
+              ScopeDownStatement:
+                LabelMatchStatement:
+                  Scope: NAMESPACE
+                  Key: 'awswaf:managed:aws:bot-control:'
+          Action:
+            Block: !If [BotControlExcludeActionFlag, {}, !Ref AWS::NoValue]
+            Count: !If [BotControlExcludeActionFlag, !Ref AWS::NoValue, {}]
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: BotRateBasedRule
+  WAFAssociateLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  WAFAssociateLambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LocalPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: 'arn:aws:logs:*:*:*'
+          - Effect: Allow
+            Action:
+              - 'cloudfront:UpdateDistribution'
+              - 'cloudfront:GetDistribution'
+              - 'cloudfront:GetDistributionConfig'
+              - 'wafv2:AssociateWebACL'
+              - 'acm:ListCertificates'
+              - 'wafv2:GetWebACL'
+              - 'elasticloadbalancing:SetWebACL'
+            Resource: '*'
+      Roles:
+        - !Ref WAFAssociateLambdaRole
+  WAFAssociateCall:
+    DependsOn: WAFAssociateLambdaPolicy
+    Type: Custom::WAFAssociatetoCloudFronts
+    Properties:
+      ServiceToken: !GetAtt WAFAssociateLambdaFunction.Arn
+      resourceArns: !Join [",", !Ref ProtectResourceArn]
+      webACLArn: !GetAtt FireExtinguisherWAFWebACL.Arn
+  WAFAssociateLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt WAFAssociateLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import urllib3
+          import json
+          import time
+          import boto3, botocore
+          http = urllib3.PoolManager()
+          cf_client = boto3.client('cloudfront')
+          wafv2_client = boto3.client('wafv2')
+          def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+            responseUrl = event['ResponseURL']
+            responseBody = {}
+            responseBody['Status'] = responseStatus
+            responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+            responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+            responseBody['StackId'] = event['StackId']
+            responseBody['RequestId'] = event['RequestId']
+            responseBody['LogicalResourceId'] = event['LogicalResourceId']
+            responseBody['NoEcho'] = noEcho
+            responseBody['Data'] = responseData
+            json_responseBody = json.dumps(responseBody)
+            print("Response body:\n" + json_responseBody)
+            headers = {
+                'content-type' : '',
+                'content-length' : str(len(json_responseBody))
+            }
+            try:
+                response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                print("Status code: " + response.reason)
+            except Exception as e:
+                print("send(..) failed executing requests.put(..): " + str(e))
+          def lambda_handler(event, context):
+              responseData = {}
+              resourceArns = event['ResourceProperties']['resourceArns'].split(",")
+              webACLArn = event['ResourceProperties']['webACLArn']
+              if resourceArns[0].split(":")[2] == 'cloudfront':
+                  resourceType = 'cloudfront'
+              else:
+                  resourceType = 'alb'
+              print (resourceType)
+              for resourceArn in resourceArns:
+                  if resourceType == 'cloudfront':
+                      cfId = resourceArn.split('/')[-1]
+                      dConfig = cf_client.get_distribution_config(
+                        Id=cfId)
+                      eTag = dConfig['ETag']
+                      print (dConfig)
+                      dConfig['DistributionConfig']['WebACLId'] = webACLArn
+                      print (dConfig['DistributionConfig'])
+                      try:
+                        cf_client.update_distribution(
+                            Id=cfId,
+                            DistributionConfig=dConfig['DistributionConfig'],
+                            IfMatch=eTag
+                        )
+                      except botocore.exceptions.ClientError as error:
+                          print (error.response['Error']['Message'])
+                          print (error.response)
+                          print (error)
+                          responseData['Data'] = error.response['Error']['Message']
+                          cfnrespond(event, context, "FAILED", responseData, "WAFAssociate")
+                          return (error.response['Error']['Message'])
+                  elif resourceType == 'alb':
+                      retryAssociate = True
+                      while retryAssociate:
+                          try:
+                              wafv2_client.associate_web_acl(
+                                  WebACLArn=webACLArn,
+                                  ResourceArn=resourceArn
+                                  )
+                              retryAssociate = False
+                          except botocore.exceptions.ClientError as error:
+                              print (error.response['Error']['Message'])
+                              time.sleep(5)
+              responseData['Data'] = "OK"
+              cfnrespond(event, context, "SUCCESS", responseData, "WAFAssociate")
+  fireExtinguisherLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  fireExtinguisherLambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LocalPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: 'arn:aws:logs:*:*:*'
+          - Effect: Allow
+            Action:
+              - 'shield:CreateProtection'
+              - 'elasticloadbalancing:DescribeLoadBalancers'
+              - 'cloudfront:GetDistribution'
+              - 'acm:ListCertificates'
+              - 'iam:CreateServiceLinkedRole'
+              - 'shield:DisassociateDRTRole'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'wafv2:UpdateWebACL'
+              - 'wafv2:PutLoggingConfiguration'
+            Resource: !GetAtt FireExtinguisherWAFWebACL.Arn
+      Roles:
+        - !Ref fireExtinguisherLambdaRole
+  CallShieldProtection:
+    DependsOn: fireExtinguisherLambdaPolicy
+    Type: Custom::CallShieldProtection
+    Properties:
+      ServiceToken: !GetAtt ShieldProtectionLambda.Arn
+      resourceArns: !Join [",", !Ref ProtectResourceArn]
+  ShieldProtectionLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt fireExtinguisherLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import urllib3
+          import json
+          import boto3, botocore
+          http = urllib3.PoolManager()
+          client = boto3.client('shield')
+          def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+            responseUrl = event['ResponseURL']
+            responseBody = {}
+            responseBody['Status'] = responseStatus
+            responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+            responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+            responseBody['StackId'] = event['StackId']
+            responseBody['RequestId'] = event['RequestId']
+            responseBody['LogicalResourceId'] = event['LogicalResourceId']
+            responseBody['NoEcho'] = noEcho
+            responseBody['Data'] = responseData
+            json_responseBody = json.dumps(responseBody)
+            print("Response body:\n" + json_responseBody)
+            headers = {
+                'content-type' : '',
+                'content-length' : str(len(json_responseBody))
+            }
+            try:
+                response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                print("Status code: " + response.reason)
+            except Exception as e:
+                print("send(..) failed executing requests.put(..): " + str(e))
+          def lambda_handler(event, context):
+            responseData = {}
+            if event['RequestType'] in ["Create","Update"]:
+
+              resourceArns = event['ResourceProperties']['resourceArns'].split(",")
+              for resourceArn in resourceArns:
+                try:
+                    client.create_protection(
+                        Name="SRTFireExtinguishProtection",
+                        ResourceArn=resourceArn
+                    )
+                except botocore.exceptions.ClientError as error:
+                    if error.response['Error']['Code'] == 'ResourceAlreadyExistsException':
+                        print ("Ok Resource Already Shield Protected")
+                    else:
+                        print (error.response['Error']['Message'])
+                        responseData['Data'] = error.response['Error']['Message']
+                        cfnrespond(event, context, "FAILED", responseData, "ShieldProtection")
+            responseData['Data'] = "OK"
+            cfnrespond(event, context, "SUCCESS", responseData, "ShieldProtection")
+  EnableWeblACLLogging:
+    DependsOn: fireExtinguisherLambdaPolicy
+    Type: Custom::WAFV2Logging
+    Properties:
+      ServiceToken: !GetAtt WebACLLoggingLambdaFunction.Arn
+      wafArn: !GetAtt FireExtinguisherWAFWebACL.Arn
+      KinesisStreamArn: !GetAtt WAFdeliverystream.Arn
+  WebACLLoggingLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt fireExtinguisherLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Environment:
+        Variables:
+          wafArn: !Ref FireExtinguisherWAFWebACL
+          KinesisStreamArn: !GetAtt WAFdeliverystream.Arn
+      Code:
+        ZipFile: |
+          import urllib3
+          import json
+          import boto3, botocore
+          http = urllib3.PoolManager()
+          client = boto3.client('wafv2')
+          def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+            responseUrl = event['ResponseURL']
+            responseBody = {}
+            responseBody['Status'] = responseStatus
+            responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+            responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+            responseBody['StackId'] = event['StackId']
+            responseBody['RequestId'] = event['RequestId']
+            responseBody['LogicalResourceId'] = event['LogicalResourceId']
+            responseBody['NoEcho'] = noEcho
+            responseBody['Data'] = responseData
+            json_responseBody = json.dumps(responseBody)
+            print("Response body:\n" + json_responseBody)
+            headers = {
+                'content-type' : '',
+                'content-length' : str(len(json_responseBody))
+            }
+            try:
+                response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                print("Status code: " + response.reason)
+            except Exception as e:
+                print("send(..) failed executing requests.put(..): " + str(e))
+          def lambda_handler(event, context):
+            print (event)
+            wafArn = event['ResourceProperties']['wafArn']
+            KinesisStreamArn = event['ResourceProperties']['KinesisStreamArn']
+            client.put_logging_configuration(
+                LoggingConfiguration={
+                    'ResourceArn': wafArn,
+                    'LogDestinationConfigs': [
+                        KinesisStreamArn
+                    ]
+                }
+            )
+            responseData = {}
+            responseData['Data'] = "OK"
+            cfnrespond(event, context, "SUCCESS", responseData, "ShieldProtection")
+  WAFLogsS3Bucket:
+    Type: 'AWS::S3::Bucket'
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub "${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+  S3BucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref WAFLogsS3Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !GetAtt WAFdeliveryRole.Arn
+            Action:
+              - s3:AbortMultipartUpload
+              - s3:GetBucketLocation
+              - s3:GetObject
+              - s3:ListBucket
+              - s3:ListBucketMultipartUploads
+              - s3:PutObject
+              - s3:PutObjectAcl
+            Resource:
+              - !Sub "${WAFLogsS3Bucket.Arn}/*"
+              - !GetAtt WAFLogsS3Bucket.Arn
+  WAFdeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub 'WAFLogDeliveryRole-${CFNLogicalResourceName}'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "sts:ExternalId": !Ref "AWS::AccountId"
+  WAFdeliveryPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: firehose_delivery_policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - "logs:PutLogEvents"
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}-id:log-group:KinesisFirehose:log-stream:aws-waf-logs-delivery-${AWS::AccountId}-${AWS::Region}"
+          - Effect: Allow
+            Action:
+              - "s3:AbortMultipartUpload"
+              - "s3:GetBucketLocation"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:ListBucketMultipartUploads"
+              - "s3:PutObject"
+              - "s3:PutObjectAcl"
+            Resource:
+              - !Sub "${WAFLogsS3Bucket.Arn}/*"
+              - !GetAtt WAFLogsS3Bucket.Arn
+      Roles:
+        - !Ref WAFdeliveryRole
+  WAFDeliveryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/${CFNLogicalResourceName}kinesisfirehose'
+  WAFDeliveryLogStream:
+    DependsOn: WAFDeliveryLogGroup
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Sub '/aws/${CFNLogicalResourceName}kinesisfirehose'
+      LogStreamName: !Sub "aws-waf-logs-${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
+  WAFdeliverystream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Sub "aws-waf-logs-${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt WAFLogsS3Bucket.Arn
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Sub '/aws/${CFNLogicalResourceName}kinesisfirehose'
+          LogStreamName: !Sub "aws-waf-logs-delivery-${CFNLogicalResourceName}-${AWS::Region}"
+        BufferingHints:
+          IntervalInSeconds: "60"
+          SizeInMBs: "50"
+        CompressionFormat: UNCOMPRESSED
+        Prefix: !Sub 'srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
+        RoleARN: !GetAtt WAFdeliveryRole.Arn
+  GlueDatabaseWAFLogs:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+        LocationUri: !Sub 's3://${WAFLogsS3Bucket}/srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
+        Description: AWS SRT Glue database for WAF logs
+  GlueTableWAFLogs:
+    # Creating the table waits for the database to be created
+    DependsOn: GlueDatabaseWAFLogs
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      TableInput:
+        Name: aws-srt-waf-logs
+        Description: DDOS Fire Extinguisher WAF Logs
+        TableType: EXTERNAL_TABLE
+        StorageDescriptor:
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          Columns:
+            - Name: timestamp
+              Type: bigint
+            - Name: formatversion
+              Type: int
+            - Name: webaclid
+              Type: string
+            - Name: terminatingruleid
+              Type: string
+            - Name: terminatingruletype
+              Type: string
+            - Name: action
+              Type: string
+            - Name: terminatingrulematchdetails
+              Type: array<string>
+            - Name: httpsourcename
+              Type: string
+            - Name: labels
+              Type: array<struct<name:string>>
+            - Name: httpsourceid
+              Type: string
+            - Name: rulegrouplist
+              Type: array<struct<ruleGroupId:string,terminatingRule:struct<ruleId:string,action:string,ruleMatchDetails:string>,nonTerminatingMatchingRules:array<string>,excludedRules:array<struct<exclusionType:string,ruleId:string>>>>
+            - Name: ratebasedrulelist
+              Type: array<struct<rateBasedRuleId:string,rateBasedRuleName:string,limitKey:string,maxRateAllowed:int,limitValue:string>>
+            - Name: nonterminatingmatchingrules
+              Type: array<struct<ruleId:string,action:string,ruleMatchDetails:array<string>>>
+            - Name: requestheadersinserted
+              Type: string
+            - Name: responsecodesent
+              Type: string
+            - Name: httprequest
+              Type: struct<clientIp:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpVersion:string,httpMethod:string,requestId:string>
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          Location: !Sub 's3://${WAFLogsS3Bucket}/srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
+          SerdeInfo:
+            SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
+            Parameters:
+              paths: action,formatVersion,httpRequest,httpSourceId,httpSourceName,labels,nonTerminatingMatchingRules,rateBasedRuleList,requestHeadersInserted,responseCodeSent,ruleGroupList,terminatingRuleId,terminatingRuleMatchDetails,terminatingRuleType,timestamp,webaclId
+              #paths: action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleMatchDetails,terminatingRuleType,timestamp,webaclId
+  AWSSRTAthenaWorkGroup:
+    DeletionPolicy: Retain
+    Type: AWS::Athena::WorkGroup
+    Properties:
+      Name: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      Description: SRT Athena WorkGroup
+      State: ENABLED
+      WorkGroupConfiguration:
+        EnforceWorkGroupConfiguration: false
+        ResultConfiguration:
+          OutputLocation: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
+          EncryptionConfiguration:
+            EncryptionOption: SSE_S3
+  AthenaQueryRateEvent:
+    DependsOn: AthenaQueryLambdaPolicy
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: CronAthenaQueries
+      Name: !Sub 'CronAthenaQueries-${CFNLogicalResourceName}'
+      ScheduleExpression: rate(15 minutes)
+      Targets:
+        - Arn: !GetAtt AthenaQueryLambda.Arn
+          Id: CronAthenaQueries
+  AWSSRTAthenaEventPermissions:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt AthenaQueryLambda.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt AthenaQueryRateEvent.Arn
+  AthenaQueryLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  AthenaQueryLambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LocalPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: 'arn:aws:logs:*:*:*'
+          - Effect: Allow
+            Action:
+              - 'athena:*'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'glue:Get*'
+              - 'glue:Update*'
+              - 'glue:CreateTable'
+            Resource:
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/default
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/default/*
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/aws-srt-waf-logs-${CFNLogicalResourceName}
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/aws-srt-waf-logs-${CFNLogicalResourceName}/*
+          - Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - !Sub "${WAFLogsS3Bucket.Arn}/*"
+              - !GetAtt WAFLogsS3Bucket.Arn
+      Roles:
+        - !Ref AthenaQueryLambdaRole
+
+  AthenaCreateViewsQueryLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt AthenaQueryLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Environment:
+        Variables:
+          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
+          workGroupName: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+          glueDatabase: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+          lookbackExpression: !Ref AutoAthenaLookBackExpression
+      Code:
+        ZipFile: |
+                  import boto3
+                  import datetime
+                  import os
+                  import time
+                  import json
+                  import urllib3
+                  import botocore
+                  s3BasePath = os.environ['s3BasePath']
+                  workGroupName = os.environ['workGroupName']
+                  database = os.environ['glueDatabase']
+                  athena_client = boto3.client('athena')
+                  http = urllib3.PoolManager()
+                  responseData = {}
+                  def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                      responseUrl = event['ResponseURL']
+                      responseBody = {}
+                      responseBody['Status'] = responseStatus
+                      responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                      responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                      responseBody['StackId'] = event['StackId']
+                      responseBody['RequestId'] = event['RequestId']
+                      responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                      responseBody['NoEcho'] = noEcho
+                      responseBody['Data'] = responseData
+                      json_responseBody = json.dumps(responseBody)
+                      print("Response body:\n" + json_responseBody)
+                      headers = {
+                        'content-type' : '',
+                        'content-length' : str(len(json_responseBody))
+                      }
+                      try:
+                          response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                          print("Status code: " + response.reason)
+                      except Exception as e:
+                          print("send(..) failed executing requests.put(..): " + str(e))
+                  def wait_for_queries_to_finish(executionIdList):
+                    while (executionIdList != []):
+                      for eId in executionIdList:
+                        currentState = athena_client.get_query_execution(QueryExecutionId=eId)['QueryExecution']['Status']['State']
+                        if currentState in ['SUCCEEDED']:
+                          executionIdList.remove (eId)
+                        elif currentState in ['FAILED','CANCELLED']:
+                          return (executionIdList)
+                      time.sleep(1)
+                    return ([])
+                  def lambda_handler(event, context):
+                    executionIdList = []
+                    transformQuery = False
+                    transformQuery = True
+                    detailedViewQueryId = event['ResourceProperties']['DetailedViewQueryId']
+                    baseQueryString = athena_client.get_named_query(
+                      NamedQueryId=detailedViewQueryId)['NamedQuery']['QueryString']
+                    queryString = "CREATE OR REPLACE VIEW DDOS_FE_DETAILED AS " + baseQueryString
+                    r = athena_client.start_query_execution(
+                          QueryString=queryString,
+                          QueryExecutionContext={
+                            'Database': database,
+                            'Catalog': 'AwsDataCatalog'},
+                          WorkGroup=workGroupName
+                      )
+                  #Wait for query to finish, it should take a second but wait just in case
+                  if wait_for_queries_to_finish([r['QueryExecutionId']]) != []:
+                    cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
+                    return ("QueriesFailed")
+                  #Get all named query IDs in WorkGroup
+                  namedQueries = athena_client.list_named_queries(
+                    WorkGroup=workGroupName)['NamedQueryIds']
+                  #Get all Named Queries
+                  for queryId in namedQueries:
+                    queryResults = athena_client.get_named_query(
+                          NamedQueryId=queryId
+                      )['NamedQuery']
+                    #Execut#Only run the ones that begin with DDOS-FE, except for DDOS-FE-DETAILED
+                    if queryResults['Name'].startswith ("DDOS-FE") and queryResults['Name'] != 'DDOS-FE-detailed':
+                      outputLocation = s3BasePath + queryResults['Name'].split('-')[-1] + '/'
+                      if transformQuery:
+                        queryString = "CREATE OR REPLACE VIEW " + '"' + database + '".' + queryResults['Name'].replace('-','_') + " AS " + queryResults['QueryString']
+                      else:
+                        queryString = queryResults['QueryString']
+                      print ("queryString")
+                      print (queryString)
+                      r = athena_client.start_query_execution(
+                          QueryString=queryString,
+                          ResultConfiguration={
+                              'OutputLocation': outputLocation,
+                              'EncryptionConfiguration': {
+                                  'EncryptionOption': 'SSE_S3',
+                              }
+                          },
+                          WorkGroup=workGroupName
+                      )
+                      executionIdList.append(r['QueryExecutionId'])
+                  print (executionIdList)
+                  if wait_for_queries_to_finish(executionIdList) != []:
+                    cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
+                    return ("QueriesFailed")
+                  else:
+                    cfnrespond(event, context, "SUCCESS", responseData, "CreateViewsSuccessful")
+  AthenaQueryLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt AthenaQueryLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Environment:
+        Variables:
+          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
+          workGroupName: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+          glueDatabase: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Code:
+        ZipFile: |
+                  import boto3
+                  import os
+
+                  s3BasePath = os.environ['s3BasePath']
+                  workGroupName = os.environ['workGroupName']
+                  glueDatabase = os.environ['glueDatabase']
+
+                  athena_client = boto3.client('athena')
+
+                  def lambda_handler(event, context):
+                    executionIdList = []
+                    allTables = athena_client.list_table_metadata(
+                      CatalogName='AwsDataCatalog',
+                      DatabaseName=glueDatabase)['TableMetadataList']
+                    viewTables = []
+                    for t in allTables:
+                      if t['TableType'] == 'VIRTUAL_VIEW':
+                        if t['Name'] != "ddos_fe_detailed":
+                          viewTables.append(t)
+                    print (viewTables)
+                    for table in viewTables:
+                      queryString = 'SELECT * FROM "GlueDatabasePlaceholder"."TableNamePlaceholder" WHERE tz_window  between now() - interval \'1\' day and now() '
+                      queryString = queryString.replace('GlueDatabasePlaceholder',glueDatabase).replace('TableNamePlaceholder',table['Name'])
+                      outputLocation = s3BasePath + table['Name'] + '/'
+                      r = athena_client.start_query_execution(
+                            QueryString=queryString,
+                            QueryExecutionContext={
+                              'Database': glueDatabase,
+                              'Catalog': 'AwsDataCatalog'},
+                            ResultConfiguration={
+                                'OutputLocation': outputLocation,
+                                'EncryptionConfiguration': {
+                                    'EncryptionOption': 'SSE_S3',
+                                }
+                            },
+                            WorkGroup=workGroupName
+                        )
+  AthenaNamedQueryIPDetailed:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: Detailed and Formatted Core RBR Data
+      Name: "DDOS-FE-detailed"
+      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      QueryString: !Sub |
+                        SELECT
+                          tz_window
+                        , sourceip
+                        , COALESCE(NULLIF(args, ''), args) args
+                        , COALESCE(NULLIF(httpSourceName, ''), httpSourceName) httpSourceName
+                        , country
+                        , uri
+                        , labels
+                        , accountId
+                        , webACLName
+                        , method
+                        , requestId
+                        , ntRules
+                        , region
+                        , scope
+                        , terminatingRuleId
+                        , action
+                        FROM
+                          (
+                           SELECT
+                             httprequest.clientip sourceip
+                           , httprequest.country country
+                           , httprequest.uri uri
+                           , httprequest.args args
+                           , httprequest.httpMethod method
+                           , httprequest.requestId requestId
+                           , httpSourceName
+                           , "split_part"(webaclId, ':', 5) accountId
+                           , "split"("split_part"(webaclId, ':', 6), '/', 4)[4] webACLName
+                           , "split_part"(webaclId, ':', 4) region
+                           , "split"("split_part"(webaclId, ':', 6), '/', 4)[1] scope
+                           , webaclId
+                           , "array_join"("transform"(nonTerminatingMatchingRules, (x) -> x.ruleId), ',') ntRules
+                           , concat("transform"("filter"(labels, (x) -> (x.name LIKE 'awswaf%')), (x) -> "split"(x.name, 'awswaf:managed:aws:')[2]),
+                                    "transform"("filter"(labels, (x) -> (NOT (x.name LIKE 'awswaf%'))), (x) -> x.name)) as labels
+                           , terminatingRuleId
+                           , "from_unixtime"(("floor"((timestamp / (1000 * 300))) * 300)) tz_window
+                           , action
+                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."aws-srt-waf-logs"
+                        )
+  AthenaNamedQueryByURIIP:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: Count by URI then Source IP over time.
+      Name: "DDOS-FE-URIRate"
+      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      QueryString: !Sub |
+                        SELECT
+                          "count"(sourceip) as count
+                        , tz_window
+                        , sourceip
+                        , uri
+                        FROM
+                          (
+                           SELECT *
+                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                        )
+                        GROUP BY tz_window, sourceip, uri
+                        ORDER BY tz_window desc, count DESC
+  AthenaNamedQueryByCountry:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: Count by Country then Source IP over time.
+      Name: "DDOS-FE-CountryRate"
+      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      QueryString: !Sub |
+                        SELECT
+                          "count"(sourceip) as count
+                        , tz_window
+                        , sourceip
+                        , country
+                        FROM
+                          (
+                           SELECT *
+                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                        )
+                        GROUP BY tz_window, sourceip, country
+                        ORDER BY tz_window desc, count DESC
+  AthenaNamedQueryIPRep:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: !Sub "Identify Top Client IP to specific URI path based on header: ${SourceIPAddressSource}"
+      Name: "DDOS-FE-SourceIPReputations"
+      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      QueryString: !Sub |
+                        SELECT if(reputation = array[],
+                                 Null,
+                                 array_join(reputation, ','))as reputation,
+                                 count(sourceip) AS count,
+                                 sourceip,
+                                 uri,
+                                 tz_window
+                        FROM
+                            (
+                              SELECT sourceip,
+                                     uri,
+                                     tz_window,
+                                     filter( labels,
+                                            x -> (
+                                              (x LIKE '%amazon-ip-list%')
+                                              OR
+                                              (x LIKE '%Reputation%')
+                                              )
+                                           ) as reputation
+                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed")
+                        WHERE reputation <> null
+                        GROUP BY tz_window,sourceip,uri,reputation
+                        order by reputation desc, count
+  AthenaNamedQueryIPAnon:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: !Sub "Identify Top Client IP to specific URI path based on header: ${SourceIPAddressSource}"
+      Name: "DDOS-FE-SourceIPAnonymousorHiddenOwner"
+      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      QueryString: !Sub |
+                        SELECT if(anonymous = array[],
+                                 Null,
+                                 array_join(anonymous, ','))as anonymous,
+                                 count(sourceip) AS count,
+                                 sourceip,
+                                 uri,
+                                 tz_window
+                        FROM
+                            (
+                              SELECT sourceip,
+                                     uri,
+                                     tz_window,
+                                     filter( labels, x -> x LIKE '%anonymous-ip-list%') as anonymous
+                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed")
+                        WHERE anonymous <> Null
+                        GROUP BY tz_window,sourceip,uri,anonymous
+                        order by anonymous desc, count
+  AthenaNamedQueryBotControl:
+    DependsOn: AWSSRTAthenaWorkGroup
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Description: !Sub "Identify Bot Traffic"
+      Name: "DDOS-FE-BotControlMatch"
+      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      QueryString: !Sub |
+                        select
+                        IF((botSignal = ARRAY[]), null, "split"(botSignal[1], ':')[3]) botSignal,
+                        IF((botCategory = ARRAY[]), null, "split"(botCategory[1], ':')[4]) botCategory,
+                        IF((botName = ARRAY[]), null, "split"(botName[1], ':')[4]) botName,
+                        count(sourceip) as count,
+                        tz_window,
+                        sourceip,
+                        uri
+                        from
+                        (select
+                        filter(labels, x -> split(x,':')[2] = 'signal') as botSignal,
+                        filter(labels, x -> split(x,':')[3] = 'category') as botCategory,
+                        filter(labels, x -> split(x,':')[3] = 'name') as botName,
+                        tz_window,
+                        sourceip,
+                        uri
+                        from
+                        (SELECT sourceip,
+                                 tz_window,
+                                 filter(labels,
+                                 x -> x LIKE 'bot-control%') AS botLabels, action, labels, uri
+                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                        )
+                        where botLabels <> array[]
+                        )
+                        Group By tz_window, sourceip, botSignal, botCategory, botName, uri
+  ThirdPartyReputationRateEvent:
+    DependsOn: ThirdPartyIPReputationBuilderLambdaPolicy
+    Type: 'AWS::Events::Rule'
+    Properties:
+      Description: 3rdPartyIPReputationHourlyUpdate
+      Name: !Sub 'ThirdPartyIPReputationBuilder-${CFNLogicalResourceName}'
+      ScheduleExpression: rate(1 hour)
+      Targets:
+        - Arn: !GetAtt ThirdPartyIPReputationBuilderLambda.Arn
+          Id: ThirdPartyIPReputationBuilder
+  ThirdPartyIPReputationBuilderEventPermissions:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !GetAtt ThirdPartyIPReputationBuilderLambda.Arn
+      Action: 'lambda:InvokeFunction'
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ThirdPartyReputationRateEvent.Arn
+  ThirdPartyIPReputationBuilderLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  ThirdPartyIPReputationBuilderLambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LocalPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+            Resource: 'arn:aws:logs:*:*:*'
+          - Effect: Allow
+            Action:
+              - 'wafv2:GetIPSet'
+              - 'wafv2:UpdateIPSet'
+            Resource: !GetAtt IPReputationListsSetIPV4.Arn
+      Roles:
+        - !Ref ThirdPartyIPReputationBuilderLambdaRole
+  ThirdPartyIPReputationBuilderLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt ThirdPartyIPReputationBuilderLambdaRole.Arn
+      Handler: index.lambda_handler
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import urllib3, boto3, json, os, botocore
+          from datetime import datetime
+
+          http = urllib3.PoolManager()
+          cidrList = []
+          client = boto3.client('wafv2')
+
+          ipsetIPv4 = os.environ['ipsetIPv4']
+          #ipsetIPv6 = os.environ['ipsetIPv6']
+
+          def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+              responseUrl = event['ResponseURL']
+              responseBody = {}
+              responseBody['Status'] = responseStatus
+              responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+              responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+              responseBody['StackId'] = event['StackId']
+              responseBody['RequestId'] = event['RequestId']
+              responseBody['LogicalResourceId'] = event['LogicalResourceId']
+              responseBody['NoEcho'] = noEcho
+              responseBody['Data'] = responseData
+              json_responseBody = json.dumps(responseBody)
+              print("Response body:\n" + json_responseBody)
+              headers = {
+                  'content-type' : '',
+                  'content-length' : str(len(json_responseBody))
+              }
+              try:
+                  response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                  print("Status code: " + response.reason)
+              except Exception as e:
+                  print("send(..) failed executing requests.put(..): " + str(e))
+          def requests(url):
+              response = (http.request('GET',url)).data.decode('utf-8')
+              return (response.split('\n'))
+          def lambda_handler(event, context):
+              print (event)
+              for url in ["https://www.spamhaus.org/drop/edrop.txt","https://www.spamhaus.org/drop/drop.txt","https://www.spamhaus.org/drop/edrop.txt"]:
+                rawlist = requests(url)
+                for line in rawlist:
+                    if not line.startswith(';'):
+                        #1.10.16.0/20 ; SBL256894
+                        tIP = line.split(' ')[0]
+                        if not "/" in tIP and not line == "":
+                            tIP = tIP + "/32"
+                        if not line == "":
+                            cidrList.append(tIP)
+              rawlist = requests("https://check.torproject.org/exit-addresses")
+              for line in rawlist:
+                if line.startswith('ExitAddress'):
+                    tIP = line.split(' ')[1]
+                    if not "/" in tIP:
+                        tIP = tIP + "/32"
+                    if not line == "":
+                        cidrList.append(tIP)
+              rawlist = requests("https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt")
+              for line in rawlist:
+                if not line.startswith('#') and not line == "":
+                    if not "/" in line:
+                        line = line + "/32"
+                    if not line == "":
+                        cidrList.append(line)
+              ipSetScope = ipsetIPv4.split(":")[5].split("/")[0].upper()
+              if ipSetScope == 'GLOBAL':
+                ipSetScope = "CLOUDFRONT"
+              ipSetname = ipsetIPv4.split(":")[5].split("/")[2]
+              ipSetid = ipsetIPv4.split(":")[5].split("/")[3]
+              lockToken = client.get_ip_set(
+                Name=ipSetname,
+                Scope=ipSetScope,
+                Id=ipSetid
+                )['LockToken']
+              now = datetime.now() # current date and time
+              updatedTime = now.strftime("%m/%d/%Y, %H:%M:%S")
+              description = "Last Updated: " + updatedTime
+              r =client.update_ip_set(
+                Name=ipSetname,
+                Scope=ipSetScope,
+                Id=ipSetid,
+                Description=description,
+                Addresses=list(cidrList),
+                LockToken=lockToken
+              )
+              if "RequestType" in event:
+                  responseData = {}
+                  responseData['Data'] = "OK"
+                  cfnrespond(event, context, "SUCCESS", responseData, "ShieldProtection")
+
+      Environment:
+        Variables:
+          ipsetIPv4: !GetAtt IPReputationListsSetIPV4.Arn
+  UpdateThirdPartyIPReputationListNow:
+    DependsOn: fireExtinguisherLambdaPolicy
+    Type: Custom::UpdateThirdPartyIPReputationListNow
+    Properties:
+      ServiceToken: !GetAtt ThirdPartyIPReputationBuilderLambda.Arn
+  ConfigureShieldLambdaRole:
+    Condition: SubscribeShield
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  ConfigureShieldLambdaPolicy:
+    Condition: SubscribeShield
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+          - Sid: IAMPassrolltoDRT
+            Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource: "*"
+          - Sid: CreateAndManageDRTRole
+            Effect: Allow
+            Action:
+            - iam:GetRole
+            - iam:PassRole
+            - iam:ListAttachedRolePolicies
+            - iam:CreateRole
+            - iam:AttachRolePolicy
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSDRTAccess"
+          - Sid: ShieldAdvancedConfiguration
+            Effect: Allow
+            Action:
+            - shield:AssociateDRTLogBucket
+            - shield:AssociateDRTRole
+            - shield:AssociateProactiveEngagementDetails
+            - shield:CreateSubscription
+            - shield:DescribeDRTAccess
+            - shield:DisableProactiveEngagement
+            - shield:DisassociateDRTLogBucket
+            - shield:DisassociateDRTRole
+            - shield:EnableProactiveEngagement
+            - shield:UpdateEmergencyContactSettings
+            - shield:UpdateSubscription
+            Resource: "*"
+          - Sid: ShieldAdvancedS3Configuration
+            Effect: Allow
+            Action:
+            - s3:PutBucketPolicy
+            - s3:GetBucketPolicy
+            Resource: "*"
+      Roles:
+        - !Ref ConfigureShieldLambdaRole
+  ConfigureShieldCall:
+    Condition: SubscribeShield
+    DependsOn: ConfigureShieldLambdaPolicy
+    Type: Custom::ConfigureShieldAdvanced
+    Properties:
+      ServiceToken: !GetAtt ConfigureShieldLambda.Arn
+      EnabledProactiveEngagement: !If [AuthorizeDRTAccessFlag,'true','false']
+      AuthorizeDRTAccessFlag: !If [AuthorizeDRTAccessFlag,'true','false']
+      EmergencyContactEmail1: !Ref EmergencyContactEmail1
+      EmergencyContactEmail2: !Ref EmergencyContactEmail2
+      EmergencyContactPhone1: !Ref EmergencyContactPhone1
+      EmergencyContactPhone2: !Ref EmergencyContactPhone2
+      DRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
+  ConfigureShieldLambda:
+      Condition: SubscribeShield
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: python3.8
+        Role: !GetAtt ConfigureShieldLambdaRole.Arn
+        Handler: index.lambda_handler
+        Code:
+          S3Bucket: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
+          S3Key: configure-shield/lambda.zip
+
+  WAFJSONTransformLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  WAFJSONTransformLambdaPolicy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+      Roles:
+        - !Ref WAFJSONTransformLambdaRole
+  BotControlTransformCall:
+    Condition: BotControlExcludeFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::BotControlTransformExclude
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      ExcludeRuleList: !Ref BotControlRuleExcludeName
+      TransformType: "ExcludeRulesNameList"
+  WAFJSONTransformLambda:
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: python3.8
+        Role: !GetAtt WAFJSONTransformLambdaRole.Arn
+        Handler: index.lambda_handler
+        Code:
+          ZipFile: |
+            import urllib3
+            import json
+            import boto3, botocore
+            http = urllib3.PoolManager()
+            client = boto3.client('wafv2')
+            def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                responseUrl = event['ResponseURL']
+                responseBody = {}
+                responseBody['Status'] = responseStatus
+                responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                responseBody['StackId'] = event['StackId']
+                responseBody['RequestId'] = event['RequestId']
+                responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                responseBody['NoEcho'] = noEcho
+                responseBody['Data'] = responseData
+                json_responseBody = json.dumps(responseBody)
+                print("Response body:\n" + json_responseBody)
+                headers = {
+                  'content-type' : '',
+                  'content-length' : str(len(json_responseBody))
+                }
+                try:
+                    response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                    print("Status code: " + response.reason)
+                except Exception as e:
+                    print("send(..) failed executing requests.put(..): " + str(e))
+            def lambda_handler(event, context):
+                if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
+                    myJson = []
+                    for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
+                        myJson.append({"Name": rName})
+                print (myJson)
+                responseData = {}
+                responseData['JSON'] = myJson
+                cfnrespond(event, context, "SUCCESS", responseData, "TransformJSON")
+
+  ConfigureShieldLambdaRole:
+    Condition: SubscribeShield
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  ConfigureShieldLambdaPolicy:
+    Condition: SubscribeShield
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+          - Sid: IAMPassrolltoDRT
+            Effect: Allow
+            Action:
+            - iam:PassRole
+            Resource: "*"
+          - Sid: CreateAndManageDRTRole
+            Effect: Allow
+            Action:
+            - iam:GetRole
+            - iam:PassRole
+            - iam:ListAttachedRolePolicies
+            - iam:CreateRole
+            - iam:AttachRolePolicy
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSDRTAccess"
+          - Sid: ShieldAdvancedConfiguration
+            Effect: Allow
+            Action:
+            - shield:AssociateDRTLogBucket
+            - shield:AssociateDRTRole
+            - shield:AssociateProactiveEngagementDetails
+            - shield:CreateSubscription
+            - shield:DescribeDRTAccess
+            - shield:DisableProactiveEngagement
+            - shield:DisassociateDRTLogBucket
+            - shield:DisassociateDRTRole
+            - shield:EnableProactiveEngagement
+            - shield:UpdateEmergencyContactSettings
+            - shield:UpdateSubscription
+            Resource: "*"
+          - Sid: ShieldAdvancedS3Configuration
+            Effect: Allow
+            Action:
+            - s3:PutBucketPolicy
+            - s3:GetBucketPolicy
+            Resource: "*"
+      Roles:
+        - !Ref ConfigureShieldLambdaRole
+  ConfigureShieldCall:
+    Condition: SubscribeShield
+    DependsOn: ConfigureShieldLambdaPolicy
+    Type: Custom::ConfigureShieldAdvanced
+    Properties:
+      ServiceToken: !GetAtt ConfigureShieldLambda.Arn
+      EnabledProactiveEngagement: !If [AuthorizeDRTAccessFlag,'true','false']
+      AuthorizeDRTAccessFlag: !If [AuthorizeDRTAccessFlag,'true','false']
+      EmergencyContactEmail1: !Ref EmergencyContactEmail1
+      EmergencyContactEmail2: !Ref EmergencyContactEmail2
+      EmergencyContactPhone1: !Ref EmergencyContactPhone1
+      EmergencyContactPhone2: !Ref EmergencyContactPhone2
+      DRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
+  ConfigureShieldLambda:
+      Condition: SubscribeShield
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: python3.8
+        Role: !GetAtt ConfigureShieldLambdaRole.Arn
+        Handler: index.lambda_handler
+        Code:
+          S3Bucket: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
+          S3Key: configure-shield/lambda.zip
+
+  EstablishHealthChecksLambdaRole:
+    Condition: SubscribeShield
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  EstablishHealthChecksLambdaPolicy:
+    Condition: SubscribeShield
+    DependsOn: ConfigureShieldCall
+    Type: 'AWS::IAM::Policy'
+    Properties:
+      PolicyName: LambdaPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: CloudWatchLogs
+            Effect: Allow
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource: "arn:aws:logs:*:*:*"
+          - Sid: CloudFormationAndResources
+            Effect: Allow
+            Action:
+            - cloudformation:*
+            - "*"
+            Resource: "*"
+      Roles:
+        - !Ref EstablishHealthChecksLambdaRole
+  EstablishHealthChecksCall:
+    Condition: CreateHealthChecksFlag
+    DependsOn: EstablishHealthChecksLambdaPolicy
+    Type: Custom::EstablishHealthChecksAdvanced
+    Properties:
+      ServiceToken: !GetAtt EstablishHealthChecksLambda.Arn
+      ResourceArnList: !Ref ProtectResourceArn
+  EstablishHealthChecksLambda:
+      Condition: SubscribeShield
+      Type: AWS::Lambda::Function
+      Properties:
+        Runtime: python3.8
+        Role: !GetAtt EstablishHealthChecksLambdaRole.Arn
+        Handler: index.lambda_handler
+        Environment:
+          Variables:
+            BucketName: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
+        Code:
+          ZipFile: |
+                    import boto3
+                    import os
+                    import urllib3
+                    import botocore
+                    import json
+                    bucketName = os.environ['BucketName']
+                    cloudformation_client = boto3.client('cloudformation')
+                    cloudfront_client = boto3.client('cloudfront')
+                    elbv2_client = boto3.client('elbv2')
+                    http = urllib3.PoolManager()
+                    def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                        responseUrl = event['ResponseURL']
+                        responseBody = {}
+                        responseBody['Status'] = responseStatus
+                        responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                        responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                        responseBody['StackId'] = event['StackId']
+                        responseBody['RequestId'] = event['RequestId']
+                        responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                        responseBody['NoEcho'] = noEcho
+                        responseBody['Data'] = responseData
+                        json_responseBody = json.dumps(responseBody)
+                        print("Response body:\n" + json_responseBody)
+                        headers = {
+                            'content-type' : '',
+                            'content-length' : str(len(json_responseBody))
+                        }
+                        try:
+                            response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                            print("Status code: " + response.reason)
+                        except Exception as e:
+                            print("send(..) failed executing requests.put(..): " + str(e))
+                    def lambda_handler(event, context):
+                        print (event)
+                        responseData = {}
+                        resourceArns = event['ResourceProperties']['ResourceArnList']
+                        for resource in resourceArns:
+                            resourceType = resource.split(":")[2]
+                            if resourceType == 'cloudfront':
+                                stackName = resource.split('/')[1] + "-DDOS-FE-Auto-HealthChecks"
+                                templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/cf_health_check.yaml"
+                                probeFQDN = cloudfront_client.get_distribution(
+                                        Id=resource.split('/')[1]
+                                    )['Distribution']['DomainName']
+                                parameters = [
+                                        {
+                                            'ParameterKey': 'CFArn',
+                                            'ParameterValue': resource
+                                        },
+                                        {
+                                            'ParameterKey': 'probeFQDN',
+                                            'ParameterValue': probeFQDN
+                                        },
+                                    ]
+                            elif resourceType == 'elasticloadbalancing':
+                                if resource.split('/')[1] == "app":
+                                    stackName = resource.split('/')[2] + "-DDOS-FE-Auto-HealthChecks"
+                                    templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/alb_health_check.yaml"
+                                    probeFQDN = elbv2_client.describe_load_balancers(
+                                        LoadBalancerArns=[resource])['LoadBalancers'][0]['DNSName']
+                                    parameters = [
+                                            {
+                                                'ParameterKey': 'ALBArn',
+                                                'ParameterValue': resource
+                                            },
+                                            {
+                                                'ParameterKey': 'probeFQDN',
+                                                'ParameterValue': probeFQDN
+                                            },
+                                        ]
+                            print (parameters)
+                            if event['RequestType'] == 'Create':
+                                try:
+                                    cloudformation_client.create_stack(
+                                        StackName=stackName,
+                                        TemplateURL=templateURL,
+                                        Parameters=parameters,
+                                        Capabilities=[
+                                            'CAPABILITY_IAM','CAPABILITY_NAMED_IAM','CAPABILITY_AUTO_EXPAND',
+                                        ]
+                                    )
+                                except botocore.exceptions.ClientError as error:
+                                    if error.response['Error']['Code'] == 'AlreadyExistsException':
+                                        print ("Stack already exists, ok")
+                                    else:
+                                        print ("Error")
+                                        cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
+                                        return()
+                            elif event['RequestType'] == 'Update':
+                                try:
+                                    cloudformation_client.update_stack(
+                                        StackName=stackName,
+                                        TemplateURL=templateURL,
+                                        Parameters=parameters,
+                                        Capabilities=[
+                                            'CAPABILITY_IAM',
+                                            'CAPABILITY_NAMED_IAM',
+                                            'CAPABILITY_AUTO_EXPAND'
+                                        ]
+                                    )
+                                except botocore.exceptions.ClientError as error:
+                                    if (error.response['Error']['Message']) == 'No updates are to be performed.':
+                                        print ("NoUpdates, OK")
+                                    else:
+                                        print ((error.response['Error']['Message']))
+                                        cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
+                                        return()
+                            elif event['RequestType'] == 'Delete':
+                                cloudformation_client.delete_stack(
+                                    StackName=stackName
+                                    )
+                        cfnrespond(event, context, "SUCCESS", responseData, "SUCCESS")

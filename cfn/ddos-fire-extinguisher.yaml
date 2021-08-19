@@ -75,14 +75,16 @@ Metadata:
         default: Optional - Existing Rule Group Arn to add to WebACL
       RuleGroup5:
         default: Optional - Existing Rule Group Arn to add to WebACL
-      BotControlRuleExcludeName:
-        default: Comma, separated list of  bots to label only
+      BotControlRateLimitLabels:
+        default: Comma separated list of bots to rate limit
       BotControlAction:
         default: Bot Control global action, determines AMR default action
       BotControlExcludeAction:
         default: Action for bots that are not blocked by AMR
       BotControlRateValue:
         default: If Rate limiting is configured for excluded bots, request rate to use
+      BotControlExcludeCategories:
+        default: Bot Control categories to exclude, if Bot Control is blocking
       CreateHealthChecks:
         default: Should we create Amazon Route 53 health checks for provided resources
     ParameterGroups:
@@ -132,7 +134,8 @@ Metadata:
         Label:
           default: "Bot Control Options"
         Parameters:
-          - BotControlRuleExcludeName
+          - BotControlExcludeCategories
+          - BotControlRateLimitLabels
           - BotControlAction
           - BotControlExcludeAction
           - BotControlRateValue
@@ -327,7 +330,10 @@ Parameters:
   RuleGroup5:
     Type: String
     Default: <na>
-  BotControlRuleExcludeName:
+  BotControlRateLimitLabels:
+    Type: String
+    Default: <na>
+  BotControlExcludeCategories:
     Type: String
     Default: <na>
   BotControlAction:
@@ -351,7 +357,8 @@ Parameters:
 
 Conditions:
   BotControlExcludeActionFlag: !Equals [!Ref BotControlExcludeAction, 'RateLimit' ]
-  BotControlExcludeFlag: !Not [!Equals [!Ref BotControlRuleExcludeName, "<na>" ] ]
+  BotControlExcludeFlag: !Not [!Equals [!Ref BotControlRateLimitLabels, "<na>" ] ]
+  BotControlExcludeCategoriesFlag: !Not [!Equals [!Ref BotControlExcludeCategories, "<na>" ] ]
   SourceIPForClientIP: !Equals [!Ref SourceIPAddressSource, "SOURCE_IP"]
   IPHeaderForClientIP: !Not [!Equals [!Ref SourceIPAddressSource, "SOURCE_IP" ] ]
   AuthorizeDRTAccessFlag: !Equals [!Ref AuthorizeDRTAccess, 'Enabled']
@@ -708,7 +715,8 @@ Resources:
                       Scope: LABEL
                       Key: 3rdPartyReputationList
           Action:
-            Block: {}
+            Block: !If [AmazonIPReputationFlag, {}, !Ref AWS::NoValue]
+            Count: !If [AmazonIPReputationFlag, !Ref AWS::NoValue, {}]
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -751,7 +759,8 @@ Resources:
                   Scope: LABEL
                   Key: awswaf:managed:aws:amazon-ip-list:AWSManagedRulesAnonymousIpList
           Action:
-            Block: {}
+            None: !If [AnonymousIPFlag, {}, !Ref AWS::NoValue]
+            Count: !If [AnonymousIPFlag, !Ref AWS::NoValue, {}]
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -857,7 +866,7 @@ Resources:
               Name: AWSManagedRulesBotControlRuleSet
               ExcludedRules:
                 !If
-                - BotControlExcludeFlag
+                - BotControlExcludeCategoriesFlag
                 - !GetAtt BotControlTransformCall.JSON
                 - !Ref AWS::NoValue
           OverrideAction:
@@ -881,9 +890,10 @@ Resources:
                     FallbackBehavior: MATCH
                   - !Ref "AWS::NoValue"
               ScopeDownStatement:
-                LabelMatchStatement:
-                  Scope: NAMESPACE
-                  Key: 'awswaf:managed:aws:bot-control:'
+                !If
+                - BotControlExcludeFlag
+                - !GetAtt BotControlScopeDownNamespaceCall.JSON
+                - !Ref AWS::NoValue
           Action:
             Block: !If [BotControlExcludeActionFlag, {}, !Ref AWS::NoValue]
             Count: !If [BotControlExcludeActionFlag, !Ref AWS::NoValue, {}]
@@ -1019,7 +1029,7 @@ Resources:
                               time.sleep(5)
               responseData['Data'] = "OK"
               cfnrespond(event, context, "SUCCESS", responseData, "WAFAssociate")
-  fireExtinguisherLambdaRole:
+  ShieldProtectLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -1032,7 +1042,7 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
-  fireExtinguisherLambdaPolicy:
+  ShieldProtectLambdaPolicy:
     Type: 'AWS::IAM::Policy'
     Properties:
       PolicyName: LocalPolicy
@@ -1060,9 +1070,9 @@ Resources:
               - 'wafv2:PutLoggingConfiguration'
             Resource: !GetAtt FireExtinguisherWAFWebACL.Arn
       Roles:
-        - !Ref fireExtinguisherLambdaRole
+        - !Ref ShieldProtectLambdaRole
   CallShieldProtection:
-    DependsOn: fireExtinguisherLambdaPolicy
+    DependsOn: ShieldProtectLambdaPolicy
     Type: Custom::CallShieldProtection
     Properties:
       ServiceToken: !GetAtt ShieldProtectionLambda.Arn
@@ -1071,7 +1081,7 @@ Resources:
     Type: 'AWS::Lambda::Function'
     Properties:
       Runtime: python3.8
-      Role: !GetAtt fireExtinguisherLambdaRole.Arn
+      Role: !GetAtt ShieldProtectLambdaRole.Arn
       Handler: index.lambda_handler
       Timeout: 300
       Code:
@@ -1124,7 +1134,7 @@ Resources:
             responseData['Data'] = "OK"
             cfnrespond(event, context, "SUCCESS", responseData, "ShieldProtection")
   EnableWeblACLLogging:
-    DependsOn: fireExtinguisherLambdaPolicy
+    DependsOn: ShieldProtectLambdaPolicy
     Type: Custom::WAFV2Logging
     Properties:
       ServiceToken: !GetAtt WebACLLoggingLambdaFunction.Arn
@@ -1134,7 +1144,7 @@ Resources:
     Type: 'AWS::Lambda::Function'
     Properties:
       Runtime: python3.8
-      Role: !GetAtt fireExtinguisherLambdaRole.Arn
+      Role: !GetAtt ShieldProtectLambdaRole.Arn
       Handler: index.lambda_handler
       Timeout: 300
       Environment:
@@ -1341,7 +1351,7 @@ Resources:
             Parameters:
               paths: action,formatVersion,httpRequest,httpSourceId,httpSourceName,labels,nonTerminatingMatchingRules,rateBasedRuleList,requestHeadersInserted,responseCodeSent,ruleGroupList,terminatingRuleId,terminatingRuleMatchDetails,terminatingRuleType,timestamp,webaclId
               #paths: action,formatVersion,httpRequest,httpSourceId,httpSourceName,nonTerminatingMatchingRules,rateBasedRuleList,ruleGroupList,terminatingRuleId,terminatingRuleMatchDetails,terminatingRuleType,timestamp,webaclId
-  AWSSRTAthenaWorkGroup:
+  AthenaWorkGroup:
     DeletionPolicy: Retain
     Type: AWS::Athena::WorkGroup
     Properties:
@@ -1364,7 +1374,7 @@ Resources:
       Targets:
         - Arn: !GetAtt AthenaQueryLambda.Arn
           Id: CronAthenaQueries
-  AWSSRTAthenaEventPermissions:
+  AthenaQueryEventPermissions:
     Type: 'AWS::Lambda::Permission'
     Properties:
       FunctionName: !GetAtt AthenaQueryLambda.Arn
@@ -1420,7 +1430,12 @@ Resources:
               - !GetAtt WAFLogsS3Bucket.Arn
       Roles:
         - !Ref AthenaQueryLambdaRole
-
+  BuildAthenaViewsCall:
+    DependsOn: ShieldProtectLambdaPolicy
+    Type: Custom::BuildAthenaViews
+    Properties:
+      ServiceToken: !GetAtt AthenaCreateViewsQueryLambda.Arn
+      DetailedViewQueryId: !Ref AthenaNamedQueryIPDetailed
   AthenaCreateViewsQueryLambda:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -1496,44 +1511,44 @@ Resources:
                             'Catalog': 'AwsDataCatalog'},
                           WorkGroup=workGroupName
                       )
-                  #Wait for query to finish, it should take a second but wait just in case
-                  if wait_for_queries_to_finish([r['QueryExecutionId']]) != []:
-                    cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
-                    return ("QueriesFailed")
-                  #Get all named query IDs in WorkGroup
-                  namedQueries = athena_client.list_named_queries(
-                    WorkGroup=workGroupName)['NamedQueryIds']
-                  #Get all Named Queries
-                  for queryId in namedQueries:
-                    queryResults = athena_client.get_named_query(
-                          NamedQueryId=queryId
-                      )['NamedQuery']
-                    #Execut#Only run the ones that begin with DDOS-FE, except for DDOS-FE-DETAILED
-                    if queryResults['Name'].startswith ("DDOS-FE") and queryResults['Name'] != 'DDOS-FE-detailed':
-                      outputLocation = s3BasePath + queryResults['Name'].split('-')[-1] + '/'
-                      if transformQuery:
-                        queryString = "CREATE OR REPLACE VIEW " + '"' + database + '".' + queryResults['Name'].replace('-','_') + " AS " + queryResults['QueryString']
-                      else:
-                        queryString = queryResults['QueryString']
-                      print ("queryString")
-                      print (queryString)
-                      r = athena_client.start_query_execution(
-                          QueryString=queryString,
-                          ResultConfiguration={
-                              'OutputLocation': outputLocation,
-                              'EncryptionConfiguration': {
-                                  'EncryptionOption': 'SSE_S3',
-                              }
-                          },
-                          WorkGroup=workGroupName
-                      )
-                      executionIdList.append(r['QueryExecutionId'])
-                  print (executionIdList)
-                  if wait_for_queries_to_finish(executionIdList) != []:
-                    cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
-                    return ("QueriesFailed")
-                  else:
-                    cfnrespond(event, context, "SUCCESS", responseData, "CreateViewsSuccessful")
+                    #Wait for query to finish, it should take a second but wait just in case
+                    if wait_for_queries_to_finish([r['QueryExecutionId']]) != []:
+                      cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
+                      return ("QueriesFailed")
+                    #Get all named query IDs in WorkGroup
+                    namedQueries = athena_client.list_named_queries(
+                      WorkGroup=workGroupName)['NamedQueryIds']
+                    #Get all Named Queries
+                    for queryId in namedQueries:
+                      queryResults = athena_client.get_named_query(
+                            NamedQueryId=queryId
+                        )['NamedQuery']
+                      #Execut#Only run the ones that begin with DDOS-FE, except for DDOS-FE-DETAILED
+                      if queryResults['Name'].startswith ("DDOS-FE") and queryResults['Name'] != 'DDOS-FE-detailed':
+                        outputLocation = s3BasePath + queryResults['Name'].split('-')[-1] + '/'
+                        if transformQuery:
+                          queryString = "CREATE OR REPLACE VIEW " + '"' + database + '".' + queryResults['Name'].replace('-','_') + " AS " + queryResults['QueryString']
+                        else:
+                          queryString = queryResults['QueryString']
+                        print ("queryString")
+                        print (queryString)
+                        r = athena_client.start_query_execution(
+                            QueryString=queryString,
+                            ResultConfiguration={
+                                'OutputLocation': outputLocation,
+                                'EncryptionConfiguration': {
+                                    'EncryptionOption': 'SSE_S3',
+                                }
+                            },
+                            WorkGroup=workGroupName
+                        )
+                        executionIdList.append(r['QueryExecutionId'])
+                    print (executionIdList)
+                    if wait_for_queries_to_finish(executionIdList) != []:
+                      cfnrespond(event, context, "FAILED", responseData, "CreateViewQueriesFailed")
+                      return ("QueriesFailed")
+                    else:
+                      cfnrespond(event, context, "SUCCESS", responseData, "CreateViewsSuccessful")
   AthenaQueryLambda:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -1567,6 +1582,8 @@ Resources:
                       if t['TableType'] == 'VIRTUAL_VIEW':
                         if t['Name'] != "ddos_fe_detailed":
                           viewTables.append(t)
+                        else:
+                          detailedQuery = t
                     print (viewTables)
                     for table in viewTables:
                       queryString = 'SELECT * FROM "GlueDatabasePlaceholder"."TableNamePlaceholder" WHERE tz_window  between now() - interval \'1\' day and now() '
@@ -1585,8 +1602,25 @@ Resources:
                             },
                             WorkGroup=workGroupName
                         )
+                    queryString = 'SELECT count(sourceip) as count, tz_window, sourceip FROM "GlueDatabasePlaceholder"."ddos_fe_detailed" WHERE tz_window  between now() - interval \'1\' day and now() group by tz_window, sourceip order by count desc, sourceip desc'
+                    queryString = queryString.replace('GlueDatabasePlaceholder',glueDatabase)
+                    outputLocation = s3BasePath + 'ddos_fe_detailed/'
+                    r = athena_client.start_query_execution(
+                          QueryString=queryString,
+                          QueryExecutionContext={
+                            'Database': glueDatabase,
+                            'Catalog': 'AwsDataCatalog'},
+                          ResultConfiguration={
+                              'OutputLocation': outputLocation,
+                              'EncryptionConfiguration': {
+                                  'EncryptionOption': 'SSE_S3',
+                              }
+                          },
+                          WorkGroup=workGroupName
+                      )
+
   AthenaNamedQueryIPDetailed:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1635,7 +1669,7 @@ Resources:
                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."aws-srt-waf-logs"
                         )
   AthenaNamedQueryByURIIP:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1656,7 +1690,7 @@ Resources:
                         GROUP BY tz_window, sourceip, uri
                         ORDER BY tz_window desc, count DESC
   AthenaNamedQueryByCountry:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1677,7 +1711,7 @@ Resources:
                         GROUP BY tz_window, sourceip, country
                         ORDER BY tz_window desc, count DESC
   AthenaNamedQueryIPRep:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1709,7 +1743,7 @@ Resources:
                         GROUP BY tz_window,sourceip,uri,reputation
                         order by reputation desc, count
   AthenaNamedQueryIPAnon:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1735,7 +1769,7 @@ Resources:
                         GROUP BY tz_window,sourceip,uri,anonymous
                         order by anonymous desc, count
   AthenaNamedQueryBotControl:
-    DependsOn: AWSSRTAthenaWorkGroup
+    DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
       Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
@@ -1920,7 +1954,7 @@ Resources:
         Variables:
           ipsetIPv4: !GetAtt IPReputationListsSetIPV4.Arn
   UpdateThirdPartyIPReputationListNow:
-    DependsOn: fireExtinguisherLambdaPolicy
+    DependsOn: ShieldProtectLambdaPolicy
     Type: Custom::UpdateThirdPartyIPReputationListNow
     Properties:
       ServiceToken: !GetAtt ThirdPartyIPReputationBuilderLambda.Arn
@@ -2049,8 +2083,16 @@ Resources:
     Type: Custom::BotControlTransformExclude
     Properties:
       ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
-      ExcludeRuleList: !Ref BotControlRuleExcludeName
+      ExcludeRuleList: !Ref BotControlExcludeCategories
       TransformType: "ExcludeRulesNameList"
+  BotControlScopeDownNamespaceCall:
+    Condition: BotControlExcludeFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::ScopeDownNameSpace
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      LabelMatchStatement: !Ref BotControlRateLimitLabels
+      TransformType: "ScopeDownNameSpace"
   WAFJSONTransformLambda:
       Type: AWS::Lambda::Function
       Properties:
@@ -2059,42 +2101,67 @@ Resources:
         Handler: index.lambda_handler
         Code:
           ZipFile: |
-            import urllib3
-            import json
-            import boto3, botocore
-            http = urllib3.PoolManager()
-            client = boto3.client('wafv2')
-            def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
-                responseUrl = event['ResponseURL']
-                responseBody = {}
-                responseBody['Status'] = responseStatus
-                responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
-                responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
-                responseBody['StackId'] = event['StackId']
-                responseBody['RequestId'] = event['RequestId']
-                responseBody['LogicalResourceId'] = event['LogicalResourceId']
-                responseBody['NoEcho'] = noEcho
-                responseBody['Data'] = responseData
-                json_responseBody = json.dumps(responseBody)
-                print("Response body:\n" + json_responseBody)
-                headers = {
-                  'content-type' : '',
-                  'content-length' : str(len(json_responseBody))
-                }
-                try:
-                    response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
-                    print("Status code: " + response.reason)
-                except Exception as e:
-                    print("send(..) failed executing requests.put(..): " + str(e))
-            def lambda_handler(event, context):
-                if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
-                    myJson = []
-                    for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
-                        myJson.append({"Name": rName})
-                print (myJson)
-                responseData = {}
-                responseData['JSON'] = myJson
-                cfnrespond(event, context, "SUCCESS", responseData, "TransformJSON")
+                    import urllib3
+                    import json
+                    import boto3
+                    import botocore
+                    import copy
+                    http = urllib3.PoolManager()
+                    client = boto3.client('wafv2')
+                    def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                        responseUrl = event['ResponseURL']
+                        responseBody = {}
+                        responseBody['Status'] = responseStatus
+                        responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                        responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                        responseBody['StackId'] = event['StackId']
+                        responseBody['RequestId'] = event['RequestId']
+                        responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                        responseBody['NoEcho'] = noEcho
+                        responseBody['Data'] = responseData
+                        json_responseBody = json.dumps(responseBody)
+                        print("Response body:\n" + json_responseBody)
+                        headers = {
+                          'content-type' : '',
+                          'content-length' : str(len(json_responseBody))
+                        }
+                        try:
+                            response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                            print("Status code: " + response.reason)
+                        except Exception as e:
+                            print("send(..) failed executing requests.put(..): " + str(e))
+                    def lambda_handler(event, context):
+                        myJson = []
+                        if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
+                            for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
+                                myJson.append({"Name": rName})
+                        elif event['ResourceProperties']['TransformType'] == 'ScopeDownNameSpace':
+                            namespaces = event['ResourceProperties']['LabelMatchStatement'].split(",")
+                            if len(namespaces) == 1:
+                                myJson = {
+                                    "LabelMatchStatement": {
+                                      "Scope": "LABEL",
+                                      "Key": "awswaf:managed:bot-control:bot:" + namespaces[0]
+                                    }
+                                }
+                            else:
+                                myJson = {
+                                    "OrStatement": {
+                                        "Statements": [
+                                        ]
+                                    }
+                                }
+                                for nSpace in namespaces:
+                                    myJson['OrStatement']['Statements'].append(copy.deepcopy({
+                                    "LabelMatchStatement": {
+                                        "Scope": "LABEL",
+                                        "Key": "awswaf:managed:bot-control:bot:" + nSpace
+                                        }
+                                    }))
+                        print (myJson)
+                        responseData = {}
+                        responseData['JSON'] = myJson
+                        cfnrespond(event, context, "SUCCESS", responseData, "TransformJSON")
 
   ConfigureShieldLambdaRole:
     Condition: SubscribeShield

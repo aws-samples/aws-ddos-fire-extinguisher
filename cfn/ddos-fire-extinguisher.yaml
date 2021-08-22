@@ -17,36 +17,26 @@ Metadata:
         default: Define how to evaluate source IP from client.  For source IP, specify SOURCE_IP, otherwise this value is the name of the header evaulated, e.g. X-FORWARDED-FOR, TRUE-CLIENT-IP
       RateBasedRuleValue:
         default: Rule Rate based on source IP by header (e.g. XFF, True-Client-IP)
-      IPRateBasedRuleValue:
-        default: Rule Rate based on source IP directly
       BlockCountryList:
-        default: Comma separated list of ISO 3166 international standard country codes. No Rate Limit https://www.iso.org/iso-3166-country-codes.html
-      CountryListRuleAction:
-        default:  Action for Countries specified on the block list
-      CountryListRBRRuleAction:
-        default:  Action for Countries specified on the block list with Rate Based
+        default: Comma separated list of ISO 3166 international standard country codes to block. https://www.iso.org/iso-3166-country-codes.html
       CountryRBRList:
         default: Comma separated list of ISO 3166 international standard country codes. Rate Limited https://www.iso.org/iso-3166-country-codes.html
+      CountryRBRUsage:
+        default: Should we rate limit the list of countries provided or all countries not from this list
       CountryListRuleRate:
         default: For Countries to rate limit, specify the rate by source ip
       UriValue:
         default: Used for URI based query rule
+      URIPositionalConstraint:
+        default: How should searchstring the provided URI value
       URIRateBasedRuleValue:
         default: Rate limit for specific URIs
-      AmazonIPReputationAction:
-        default: Block or Count based on Amazon Managed IP Reputation Rule
       ReputationRateLimitValue:
         default: Rate limit for poor reputation source IPs
-      AnonymousIPAction:
-        default:: Block or Count based on Amazon Managed Anonymous IP Rule
       AnonymousRateLimitValue:
         default: Rate limit for anonymous source IPs
-      ExcludeHostingProviderIP:
-        default: Block or count for Hosting Provider rule under Anonymous IP managed rule group. "Inspects for a list of IP addresses from hosting and cloud providers, which are less likely to source end-user traffic. Examples include cloud providers like AWS."
       URIActions:
         default:  Block or just count based login or search being a part of query path
-      ThirdPartyReputationAction:
-        default: Block or just count based on 3rd party IP Reputation lists.  List is updated every hour
       SubscribeAndConfigureShieldAdvanced:
         default: This will subscribe the account to Shield Advanced, configure contacts, and authorize AWS SRT access for this account
       EmergencyContactEmail1:
@@ -61,8 +51,6 @@ Metadata:
         default: Confirming you want to subscribe to Shield Advanced
       RateBaseRuleAction:
         default: Action for Rate based rules to take when exceeded
-      CountryListRuleAction:
-        default:  Action to take for Countries specified on the block list
       AuthorizeDRTAccess:
         default: Create and authorize DRT role for WebACL and AWS WAF log access
       RuleGroup1:
@@ -75,16 +63,12 @@ Metadata:
         default: Optional - Existing Rule Group Arn to add to WebACL
       RuleGroup5:
         default: Optional - Existing Rule Group Arn to add to WebACL
-      BotControlRateLimitLabels:
-        default: Comma separated list of bots to rate limit
-      BotControlAction:
-        default: Bot Control global action, determines AMR default action
-      BotControlExcludeAction:
-        default: Action for bots that are not blocked by AMR
       BotControlRateValue:
-        default: If Rate limiting is configured for excluded bots, request rate to use
-      BotControlExcludeCategories:
-        default: Bot Control categories to exclude, if Bot Control is blocking
+        default: Rate Limit or Count bots on Rate Limit list
+      BotControlRateLimitLabels:
+        default: Comma separated list of Bot suffix Labels to rate limit
+      BlockSpecificBotList:
+        default: Comma separate list of Bot suffix labels to block
       CreateHealthChecks:
         default: Should we create Amazon Route 53 health checks for provided resources
     ParameterGroups:
@@ -100,51 +84,44 @@ Metadata:
           default: "Blanket Rate Based Rule Options"
         Parameters:
           - RateBasedRuleValue
-
-          - IPRateBasedRuleValue
           - RateBaseRuleAction
       -
         Label:
           default: "IP Reputation Rule Options"
         Parameters:
-          - AmazonIPReputationAction
-          - ThirdPartyReputationAction
+          - ReputationRBRLimitLabels
           - ReputationRateLimitValue
+          - ReputationBlockLabels
       -
         Label:
           default: "Anonymous IP Rule Options"
         Parameters:
-          - AnonymousIPAction
-          - ExcludeHostingProviderIP
+          - AnonymousRateLimitLabels
           - AnonymousRateLimitValue
+          - AnonymousBlockLables
       -
         Label:
           default: "Source Country Rule Options "
         Parameters:
-          - CountryListRuleAction
-          - BlockCountryList
-      -
-        Label:
-          default: "Rate limit by Source Country Rule Options"
-        Parameters:
-          - CountryListRBRRuleAction
           - CountryRBRList
+          - CountryRBRUsage
           - CountryListRuleRate
+          - BlockCountryList
+
       -
         Label:
           default: "Bot Control Options"
         Parameters:
-          - BotControlExcludeCategories
           - BotControlRateLimitLabels
-          - BotControlAction
-          - BotControlExcludeAction
           - BotControlRateValue
+          - BlockSpecificBotList
       -
         Label:
           default: "URI Rule Options"
         Parameters:
           - UriValue
           - URIActions
+          - URIPositionalConstraint
           - URIRateBasedRuleValue
       -
         Label:
@@ -201,34 +178,28 @@ Parameters:
       - Enabled
   RateBasedRuleValue:
       Type: String
-      Default: 5000
+      Default: 2000
   SourceIPAddressSource:
       Type: String
       Default: SOURCE_IP
   RateBaseRuleAction:
     Type: String
-    Default: Count
-    AllowedValues:
-      - Block
-      - Count
-  CountryListRuleAction:
-    Type: String
-    Default: Count
-    AllowedValues:
-      - Block
-      - Count
-  CountryListRBRRuleAction:
-    Type: String
-    Default: Count
+    Default: Block
     AllowedValues:
       - Block
       - Count
   BlockCountryList:
     Type: CommaDelimitedList
-    Default: RU,LY
+    Default: <na>
   CountryRBRList:
     Type: CommaDelimitedList
-    Default: AF,AR
+    Default: CN,DE,BZ
+  CountryRBRUsage:
+    Type: String
+    Default: Rate Limit these Countries
+    AllowedValues:
+      - Rate Limit these Countries
+      - Rate Limit countries not on this list
   CountryListRuleRate:
     Type: Number
     Default: 100
@@ -270,46 +241,63 @@ Parameters:
   UriValue:
     Type: String
     Default: /login
+  URIPositionalConstraint:
+    Type: String
+    Default: STARTS_WITH
+    AllowedValues:
+      - CONTAINS
+      - CONTAINS_WORD
+      - ENDS_WITH
+      - EXACTLY
+      - STARTS_WITH
   URIRateBasedRuleValue:
     Type: Number
     Default: 5000
     MinValue: 100
     MaxValue: 20000000
-  AmazonIPReputationAction:
+  ReputationBlockLabels:
     Type: String
-    Default: Count
+    Default: none
     AllowedValues:
-      - Block
-      - Count
+      - none
+      - awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList:AWSManagedIPReputationList
+      - 3rdPartyReputationList
+      - 3rdPartyReputationList,awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList:AWSManagedIPReputationList
+  ReputationRBRLimitLabels:
+    Type: String
+    Default: 3rdPartyReputationList,awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList:AWSManagedIPReputationList
+    AllowedValues:
+      - none
+      - awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList:AWSManagedIPReputationList
+      - 3rdPartyReputationList
+      - 3rdPartyReputationList,awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList:AWSManagedIPReputationList
   ReputationRateLimitValue:
     Type: Number
     Default: 100
     MinValue: 100
     MaxValue: 20000000
-  AnonymousIPAction:
-    Type: String
-    Default: Count
-    AllowedValues:
-      - Block
-      - Count
   AnonymousRateLimitValue:
     Type: Number
     Default: 100
     MinValue: 100
     MaxValue: 20000000
-  ExcludeHostingProviderIP:
+  AnonymousRateLimitLabels:
     Type: String
-    Default: Count
+    Default: HostingProviderIPList
     AllowedValues:
-      - RuleAction
-      - Count
+      - none
+      - AnonymousIPList
+      - HostingProviderIPList
+      - AnonymousIPList,HostingProviderIPList
+  AnonymousBlockLables:
+    Type: String
+    Default: AnonymousIPList
+    AllowedValues:
+      - none
+      - AnonymousIPList
+      - HostingProviderIPList
+      - AnonymousIPList,HostingProviderIPList
   URIActions:
-    Type: String
-    Default: Count
-    AllowedValues:
-      - Block
-      - Count
-  ThirdPartyReputationAction:
     Type: String
     Default: Count
     AllowedValues:
@@ -333,55 +321,63 @@ Parameters:
   BotControlRateLimitLabels:
     Type: String
     Default: <na>
-  BotControlExcludeCategories:
-    Type: String
-    Default: <na>
-  BotControlAction:
-    Type: String
-    Default: Count
-    AllowedValues:
-      - Count
-      - Block
-      - No
-  BotControlExcludeAction:
-    Type: String
-    Default: Count
-    AllowedValues:
-      - Count
-      - RateLimit
   BotControlRateValue:
     Type: Number
     Default: 500
     MinValue: 100
     MaxValue: 20000000
-
+  BlockSpecificBotList:
+    Type: CommaDelimitedList
+    Default: <na>
 Conditions:
-  BotControlExcludeActionFlag: !Equals [!Ref BotControlExcludeAction, 'RateLimit' ]
-  BotControlExcludeFlag: !Not [!Equals [!Ref BotControlRateLimitLabels, "<na>" ] ]
-  BotControlExcludeCategoriesFlag: !Not [!Equals [!Ref BotControlExcludeCategories, "<na>" ] ]
-  SourceIPForClientIP: !Equals [!Ref SourceIPAddressSource, "SOURCE_IP"]
-  IPHeaderForClientIP: !Not [!Equals [!Ref SourceIPAddressSource, "SOURCE_IP" ] ]
-  AuthorizeDRTAccessFlag: !Equals [!Ref AuthorizeDRTAccess, 'Enabled']
-  CountHostingProviderIPFlag: !Equals [!Ref ExcludeHostingProviderIP, 'Count']
-  BotControlFlag: !Equals [!Ref BotControlAction, "Block"]
-  RegionalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'elasticloadbalancing']
-  GlobalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'cloudfront']
-  AmazonIPReputationFlag: !Equals [!Ref AmazonIPReputationAction, 'Block']
-  AnonymousIPFlag: !Equals [!Ref AnonymousIPAction, 'Block']
-  URIActionFlag: !Equals [!Ref URIActions, 'Block']
-  CountryListRuleFlag: !Equals [!Ref CountryListRuleAction, 'Block']
-  CountryListRBRRuleFlag: !Equals [!Ref CountryListRBRRuleAction, 'Block']
+  #Global rate limit rule action, used to set rule to count or block
   RateBaseRuleActionFlag: !Equals [!Ref RateBaseRuleAction, 'Block']
-  ThirdPartyReputationFlag: !Equals [!Ref ThirdPartyReputationAction, 'Block']
+  #True when rules should use source IP for requester IP
+  SourceIPForClientIP: !Equals [!Ref SourceIPAddressSource, "SOURCE_IP"]
+  #True when rules should use a specified header for requester IP
+  IPHeaderForClientIP: !Not [!Equals [!Ref SourceIPAddressSource, "SOURCE_IP" ] ]
+  #True when provided resource is ALB (aka, regional)
+  RegionalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'elasticloadbalancing']
+  #True when provided resource list is Cloudfront (AKA, global)
+  GlobalScope: !Equals [!Select [2, !Split [":", !Select [0, !Ref ProtectResourceArn]]], 'cloudfront']
+  #Should we create health checks for resources
+  CreateHealthChecksFlag: !And
+  - !Equals [!Ref CreateHealthChecks, true]
+  - !Condition SubscribeShield
+  #BotControl Flags
+  #If List of bot labels is not blank
+  BlockSpecificBotsFlag: !Not [!Equals [!Join [',', !Ref BlockSpecificBotList], '<na>']]
+  #If list of rate limit bot labels is not blank.
+  BotControlExcludeFlag: !Not [!Equals [!Ref BotControlRateLimitLabels, "<na>" ] ]
+  #CountryBased Flags
+  #If list of countries to block is not blank
+  BlockCountryListFlag: !Not [!Equals [!Join [',', !Ref BlockCountryList], '<na>']]
+  #If list of countries to rate limit is not blank
+  CountryRBRListFlag: !Not [!Equals [!Join [',', !Ref CountryRBRList], '<na>']]
+  #If country list for Rate limit is for the list provided or countries not from that list.
+  CountryRBRUsageFlag: !Equals [!Ref CountryRBRUsage, "Rate Limit these Countries"]
+  #Shield Configuration
+  #If we should enable SRT Access to Shield Advanced
+  AuthorizeDRTAccessFlag: !Equals [!Ref AuthorizeDRTAccess, 'Enabled']
+  #If we should subscribe to Shield Advanced, both parameters must be true
   SubscribeShield: !Equals [!Ref SubscribeAndConfigureShieldAdvanced, 'true']
+  #AnonymousIP Flags
+  #True if anonymous labels to rate limit is not blank
+  AnonymousRateLimitFlag: !Not [ !Equals [!Ref AnonymousRateLimitLabels, 'none'] ]
+  #True if anonymous labels to block is not blank
+  AnonymousBlockFlag: !Not [ !Equals [!Ref AnonymousBlockLables, 'none'] ]
+  #URI Flags
+  #Specific URI
+  URIActionFlag: !Equals [!Ref URIActions, 'Block']
+  #Reputation Flags
+  ReputationBlockFlag: !Not [ !Equals [!Ref ReputationBlockLabels, 'none']]
+  ReputationRBRLimitLabelsFlag: !Not [ !Equals [!Ref ReputationRBRLimitLabels, 'none']]
+  #General WAF
   RuleGroup1Flag: !Not [!Equals [!Ref RuleGroup1, '<na>']]
   RuleGroup2Flag: !Not [!Equals [!Ref RuleGroup2, '<na>']]
   RuleGroup3Flag: !Not [!Equals [!Ref RuleGroup3, '<na>']]
   RuleGroup4Flag: !Not [!Equals [!Ref RuleGroup4, '<na>']]
   RuleGroup5Flag: !Not [!Equals [!Ref RuleGroup5, '<na>']]
-  CreateHealthChecksFlag: !And
-  - !Equals [!Ref CreateHealthChecks, true]
-  - !Condition SubscribeShield
 Resources:
   IPSetAllowListIPv4A:
     Type: 'AWS::WAFv2::IPSet'
@@ -512,15 +508,15 @@ Resources:
   FireExtinguisherWAFWebACL:
     Type: AWS::WAFv2::WebACL
     Properties:
-      Name: !Sub 'SRT-FireExtinguisher-${CFNLogicalResourceName}'
+      Name: !Sub 'DDOS-FireExtinguisher-${CFNLogicalResourceName}'
       Scope: !If [GlobalScope,"CLOUDFRONT","REGIONAL"]
-      Description: AWS SRT FireExtinguisher WAFWebACL
+      Description: DDOS FireExtinguisher WAFWebACL
       DefaultAction:
         Allow: {}
       VisibilityConfig:
         SampledRequestsEnabled: true
         CloudWatchMetricsEnabled: true
-        MetricName: ExampleWebACLMetric
+        MetricName: FireExtinguisherWAF
       Rules:
         - Name: AllowListedCIDRs
           Priority: 0
@@ -584,7 +580,7 @@ Resources:
                 SampledRequestsEnabled: true
                 CloudWatchMetricsEnabled: true
                 MetricName: !Select [2, !Split ["/", !Ref RuleGroup1]]
-            - !Ref AWS::NoValue
+            - !Ref "AWS::NoValue"
         - !If
             - RuleGroup2Flag
             -
@@ -599,7 +595,7 @@ Resources:
                 SampledRequestsEnabled: true
                 CloudWatchMetricsEnabled: true
                 MetricName: !Select [2, !Split ["/", !Ref RuleGroup2]]
-            - !Ref AWS::NoValue
+            - !Ref "AWS::NoValue"
         - !If
             - RuleGroup3Flag
             -
@@ -614,7 +610,7 @@ Resources:
                 SampledRequestsEnabled: true
                 CloudWatchMetricsEnabled: true
                 MetricName: !Select [2, !Split ["/", !Ref RuleGroup3]]
-            - !Ref AWS::NoValue
+            - !Ref "AWS::NoValue"
         - !If
             - RuleGroup4Flag
             -
@@ -629,7 +625,7 @@ Resources:
                 SampledRequestsEnabled: true
                 CloudWatchMetricsEnabled: true
                 MetricName: !Select [2, !Split ["/", !Ref RuleGroup4]]
-            - !Ref AWS::NoValue
+            - !Ref "AWS::NoValue"
         - !If
             - RuleGroup5Flag
             -
@@ -644,7 +640,7 @@ Resources:
                 SampledRequestsEnabled: true
                 CloudWatchMetricsEnabled: true
                 MetricName: !Select [2, !Split ["/", !Ref RuleGroup5]]
-            - !Ref AWS::NoValue
+            - !Ref "AWS::NoValue"
         - Name: AWS-AWSManagedRulesAmazonIpReputationList
           Priority: 8
           Statement:
@@ -652,8 +648,7 @@ Resources:
               VendorName: AWS
               Name: AWSManagedRulesAmazonIpReputationList
           OverrideAction:
-            None: !If [AmazonIPReputationFlag, {}, !Ref AWS::NoValue]
-            Count: !If [AmazonIPReputationFlag, !Ref AWS::NoValue, {}]
+            Count: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -684,131 +679,169 @@ Resources:
                         Position: ANY
                       - !Ref "AWS::NoValue"
           Action:
-            Block: !If [ThirdPartyReputationFlag, {}, !Ref AWS::NoValue]
-            Count: !If [ThirdPartyReputationFlag, !Ref AWS::NoValue, {}]
+            Count: {}
           RuleLabels:
             - Name: 3rdPartyReputationList
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: 3rdPartyIPreputationBlock
-        - Name: ReputationRateLimit
-          Priority: 10
-          Statement:
-            RateBasedStatement:
-              Limit: !Ref ReputationRateLimitValue
-              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
-              ForwardedIPConfig:
+        - !If
+            - ReputationRBRLimitLabelsFlag
+            -
+              Name: ReputationRateLimit
+              Priority: 10
+              Statement:
+                RateBasedStatement:
+                  Limit: !Ref ReputationRateLimitValue
+                  AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+                  ForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                      - !Ref "AWS::NoValue"
+                  ScopeDownStatement:
+                    !GetAtt ReputationScopeDownNamespaceCall.JSON
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: ReputationRateLimit
+            - !Ref "AWS::NoValue"
+        - !If
+            - ReputationBlockFlag
+            -
+              Name: BlockReputation
+              Priority: 11
+              Statement:
                 !If
-                  - IPHeaderForClientIP
-                  -
-                    HeaderName: !Ref SourceIPAddressSource
-                    FallbackBehavior: MATCH
-                  - !Ref "AWS::NoValue"
-              ScopeDownStatement:
-                OrStatement:
-                  Statements:
-                  - LabelMatchStatement:
-                      Scope: LABEL
-                      Key: awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList
-                  - LabelMatchStatement:
-                      Scope: LABEL
-                      Key: 3rdPartyReputationList
-          Action:
-            Block: !If [AmazonIPReputationFlag, {}, !Ref AWS::NoValue]
-            Count: !If [AmazonIPReputationFlag, !Ref AWS::NoValue, {}]
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: ReputationRateLimit
-
+                - ReputationBlockFlag
+                - !GetAtt BlockReputationCall.JSON
+                - LabelMatchStatement:
+                    Scope: LABEL
+                    Key: awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList
+              Action:
+                Block: !If [ReputationBlockFlag, {}, !Ref "AWS::NoValue"]
+                Count: !If [ReputationBlockFlag, !Ref "AWS::NoValue", {}]
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: BlockAnonymous
+            - !Ref "AWS::NoValue"
         - Name: AWS-AWSManagedRulesAnonymousIpList
           Priority: 15
           Statement:
             ManagedRuleGroupStatement:
               VendorName: AWS
               Name: AWSManagedRulesAnonymousIpList
-              ExcludedRules:
-                !If
-                - CountHostingProviderIPFlag
-                -
-                  - Name: !If [CountHostingProviderIPFlag, "HostingProviderIPList", !Ref "AWS::NoValue"]
-                - !Ref AWS::NoValue
           OverrideAction:
-            None: !If [AnonymousIPFlag, {}, !Ref AWS::NoValue]
-            Count: !If [AnonymousIPFlag, !Ref AWS::NoValue, {}]
+            Count: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWS-AWSManagedRulesAnonymousIpList
-        - Name: AnonymousRateLimit
-          Priority: 16
-          Statement:
-            RateBasedStatement:
-              Limit: !Ref AnonymousRateLimitValue
-              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
-              ForwardedIPConfig:
-                !If
-                  - IPHeaderForClientIP
-                  -
-                    HeaderName: !Ref SourceIPAddressSource
-                    FallbackBehavior: MATCH
-                  - !Ref "AWS::NoValue"
-              ScopeDownStatement:
-                LabelMatchStatement:
-                  Scope: LABEL
-                  Key: awswaf:managed:aws:amazon-ip-list:AWSManagedRulesAnonymousIpList
-          Action:
-            None: !If [AnonymousIPFlag, {}, !Ref AWS::NoValue]
-            Count: !If [AnonymousIPFlag, !Ref AWS::NoValue, {}]
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: AnonymousRateLimit
-        - Name: Country-List-Block
-          Priority: 20
-          Statement:
-            GeoMatchStatement:
-              CountryCodes:
-                !Ref BlockCountryList
-              ForwardedIPConfig:
-                !If
-                  - IPHeaderForClientIP
-                  -
-                    HeaderName: !Ref SourceIPAddressSource
-                    FallbackBehavior: MATCH
-                  - !Ref "AWS::NoValue"
-          Action:
-            Block: !If [CountryListRuleFlag, {}, !Ref AWS::NoValue]
-            Count: !If [CountryListRuleFlag, !Ref AWS::NoValue, {}]
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: OFAC-Geo-Block-No-RBR
-        - Name: Country-List-Rate-Based-Rule
-          Priority: 21
-          Statement:
-            RateBasedStatement:
-              Limit: !Ref CountryListRuleRate
-              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
-              ForwardedIPConfig:
-                !If
-                  - IPHeaderForClientIP
-                  -
-                    HeaderName: !Ref SourceIPAddressSource
-                    FallbackBehavior: MATCH
-                  - !Ref "AWS::NoValue"
-              ScopeDownStatement:
+        - !If
+            - AnonymousRateLimitFlag
+            -
+              Name: AnonymousRateLimit
+              Priority: 16
+              Statement:
+                RateBasedStatement:
+                  Limit: !Ref AnonymousRateLimitValue
+                  AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+                  ForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                      - !Ref "AWS::NoValue"
+                  ScopeDownStatement:
+                    !GetAtt AnonymousRateLimitCall.JSON
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: AnonymousRateLimit
+            - !Ref "AWS::NoValue"
+        - !If
+            - AnonymousBlockFlag
+            -
+              Name: BlockAnonymous
+              Priority: 17
+              Statement:
+                !GetAtt BlockAnonymousCall.JSON
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: BlockAnonymous
+            - !Ref "AWS::NoValue"
+        - !If
+            - BlockCountryListFlag
+            -
+              Name: Block-Country-List
+              Priority: 20
+              Statement:
                 GeoMatchStatement:
                   CountryCodes:
-                    !Ref CountryRBRList
-          Action:
-            Block: !If [CountryListRBRRuleFlag, {}, !Ref AWS::NoValue]
-            Count: !If [CountryListRBRRuleFlag, !Ref AWS::NoValue, {}]
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: OFAC-Geo-Block-RBR
+                    !Ref BlockCountryList
+                  ForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                      - !Ref "AWS::NoValue"
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: Block-Country-List
+            - !Ref "AWS::NoValue"
+        - !If
+            - CountryRBRListFlag
+            -
+              Name: Country-List-Rate-Based-Rule
+              Priority: 21
+              Statement:
+                RateBasedStatement:
+                  Limit: !Ref CountryListRuleRate
+                  AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+                  ForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                      - !Ref "AWS::NoValue"
+                  ScopeDownStatement:
+                    !If
+                    - CountryRBRUsageFlag
+                    -
+                      GeoMatchStatement:
+                        CountryCodes:
+                          !Ref CountryRBRList
+                    -
+                      NotStatement:
+                        Statement:
+                          GeoMatchStatement:
+                            CountryCodes:
+                              !Ref CountryRBRList
+              Action:
+                Block: !If [CountryRBRListFlag, {}, !Ref "AWS::NoValue"]
+                Count: !If [CountryRBRListFlag, !Ref "AWS::NoValue", {}]
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: OFAC-Geo-Block-RBR
+            - !Ref "AWS::NoValue"
         - Name: Blanket-Rate-Based-Rule
           Priority: 22
           Statement:
@@ -823,8 +856,8 @@ Resources:
                     FallbackBehavior: MATCH
                   - !Ref "AWS::NoValue"
           Action:
-            Block: !If [RateBaseRuleActionFlag, {}, !Ref AWS::NoValue]
-            Count: !If [RateBaseRuleActionFlag, !Ref AWS::NoValue, {}]
+            Block: !If [RateBaseRuleActionFlag, {}, !Ref "AWS::NoValue"]
+            Count: !If [RateBaseRuleActionFlag, !Ref "AWS::NoValue", {}]
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -850,10 +883,10 @@ Resources:
                   TextTransformations:
                   - Priority: 0
                     Type: CMD_LINE
-                  PositionalConstraint: CONTAINS_WORD
+                  PositionalConstraint: !Ref URIPositionalConstraint
           Action:
-            Block: !If [URIActionFlag, {}, !Ref AWS::NoValue]
-            Count: !If [URIActionFlag, !Ref AWS::NoValue, {}]
+            Block: !If [URIActionFlag, {}, !Ref "AWS::NoValue"]
+            Count: !If [URIActionFlag, !Ref "AWS::NoValue", {}]
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
@@ -864,43 +897,56 @@ Resources:
             ManagedRuleGroupStatement:
               VendorName: AWS
               Name: AWSManagedRulesBotControlRuleSet
-              ExcludedRules:
-                !If
-                - BotControlExcludeCategoriesFlag
-                - !GetAtt BotControlTransformCall.JSON
-                - !Ref AWS::NoValue
           OverrideAction:
-            None: !If [BotControlFlag, {}, !Ref AWS::NoValue]
-            Count: !If [BotControlFlag, !Ref AWS::NoValue, {}]
+            Count: {}
           VisibilityConfig:
             SampledRequestsEnabled: true
             CloudWatchMetricsEnabled: true
             MetricName: AWS-AWSManagedRulesBotControlRuleSet
-        - Name: BotRateBasedRule
-          Priority: 31
-          Statement:
-            RateBasedStatement:
-              Limit: !Ref BotControlRateValue
-              AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
-              ForwardedIPConfig:
+        - !If
+            - BotControlExcludeFlag
+            -
+              Name: BotLabelsRateLimit
+              Priority: 31
+              Statement:
+                RateBasedStatement:
+                  Limit: !Ref BotControlRateValue
+                  AggregateKeyType: !If [SourceIPForClientIP, "IP", "FORWARDED_IP"]
+                  ForwardedIPConfig:
+                    !If
+                      - IPHeaderForClientIP
+                      -
+                        HeaderName: !Ref SourceIPAddressSource
+                        FallbackBehavior: MATCH
+                      - !Ref "AWS::NoValue"
+                  ScopeDownStatement:
+                    !GetAtt BotControlScopeDownNamespaceCall.JSON
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: BotRateBasedRule
+            - !Ref "AWS::NoValue"
+        - !If
+            - BlockSpecificBotsFlag
+            -
+              Name: BlockSpecificBots
+              Priority: 32
+              Statement:
                 !If
-                  - IPHeaderForClientIP
-                  -
-                    HeaderName: !Ref SourceIPAddressSource
-                    FallbackBehavior: MATCH
-                  - !Ref "AWS::NoValue"
-              ScopeDownStatement:
-                !If
-                - BotControlExcludeFlag
-                - !GetAtt BotControlScopeDownNamespaceCall.JSON
-                - !Ref AWS::NoValue
-          Action:
-            Block: !If [BotControlExcludeActionFlag, {}, !Ref AWS::NoValue]
-            Count: !If [BotControlExcludeActionFlag, !Ref AWS::NoValue, {}]
-          VisibilityConfig:
-            SampledRequestsEnabled: true
-            CloudWatchMetricsEnabled: true
-            MetricName: BotRateBasedRule
+                - BlockSpecificBotsFlag
+                - !GetAtt BlockSpecificBotsStatement.JSON
+                - LabelMatchStatement:
+                    Scope: LABEL
+                    Key: awswaf:managed:aws:bot-control:signal:known_bot_data_center
+              Action:
+                Block: {}
+              VisibilityConfig:
+                SampledRequestsEnabled: true
+                CloudWatchMetricsEnabled: true
+                MetricName: ExcludeTheseBots
+            - !Ref "AWS::NoValue"
   WAFAssociateLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -1121,7 +1167,7 @@ Resources:
               for resourceArn in resourceArns:
                 try:
                     client.create_protection(
-                        Name="SRTFireExtinguishProtection",
+                        Name="DDOSFireExtinguishProtection",
                         ResourceArn=resourceArn
                     )
                 except botocore.exceptions.ClientError as error:
@@ -1288,25 +1334,25 @@ Resources:
           IntervalInSeconds: "60"
           SizeInMBs: "50"
         CompressionFormat: UNCOMPRESSED
-        Prefix: !Sub 'srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
+        Prefix: !Sub 'waflogs/${AWS::AccountId}/${AWS::Region}/'
         RoleARN: !GetAtt WAFdeliveryRole.Arn
   GlueDatabaseWAFLogs:
     Type: AWS::Glue::Database
     Properties:
       CatalogId: !Ref AWS::AccountId
       DatabaseInput:
-        Name: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
-        LocationUri: !Sub 's3://${WAFLogsS3Bucket}/srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
-        Description: AWS SRT Glue database for WAF logs
+        Name: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
+        LocationUri: !Sub 's3://${WAFLogsS3Bucket}/waflogs/${AWS::AccountId}/${AWS::Region}/'
+        Description: AWS DDOS Fire Extinguisher Glue database for WAF logs
   GlueTableWAFLogs:
     # Creating the table waits for the database to be created
     DependsOn: GlueDatabaseWAFLogs
     Type: AWS::Glue::Table
     Properties:
       CatalogId: !Ref AWS::AccountId
-      DatabaseName: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      DatabaseName: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       TableInput:
-        Name: aws-srt-waf-logs
+        Name: aws-ddos-fire-extinguisher
         Description: DDOS Fire Extinguisher WAF Logs
         TableType: EXTERNAL_TABLE
         StorageDescriptor:
@@ -1345,7 +1391,7 @@ Resources:
             - Name: httprequest
               Type: struct<clientIp:string,country:string,headers:array<struct<name:string,value:string>>,uri:string,args:string,httpVersion:string,httpMethod:string,requestId:string>
           InputFormat: org.apache.hadoop.mapred.TextInputFormat
-          Location: !Sub 's3://${WAFLogsS3Bucket}/srt/waflogs/${AWS::AccountId}/${AWS::Region}/'
+          Location: !Sub 's3://${WAFLogsS3Bucket}/waflogs/${AWS::AccountId}/${AWS::Region}/'
           SerdeInfo:
             SerializationLibrary: org.openx.data.jsonserde.JsonSerDe
             Parameters:
@@ -1355,13 +1401,13 @@ Resources:
     DeletionPolicy: Retain
     Type: AWS::Athena::WorkGroup
     Properties:
-      Name: !Sub 'SRT-WG-${CFNLogicalResourceName}'
-      Description: SRT Athena WorkGroup
+      Name: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
+      Description: DDOS Fire Extinguisher Athena WorkGroup
       State: ENABLED
       WorkGroupConfiguration:
         EnforceWorkGroupConfiguration: false
         ResultConfiguration:
-          OutputLocation: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
+          OutputLocation: !Sub 's3://${WAFLogsS3Bucket}/athenaReports/'
           EncryptionConfiguration:
             EncryptionOption: SSE_S3
   AthenaQueryRateEvent:
@@ -1420,8 +1466,8 @@ Resources:
                 - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:catalog
                 - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/default
                 - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/default/*
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/aws-srt-waf-logs-${CFNLogicalResourceName}
-                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/aws-srt-waf-logs-${CFNLogicalResourceName}/*
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:database/aws-ddos-fire-extinguisher-${CFNLogicalResourceName}
+                - !Sub arn:aws:glue:${AWS::Region}:${AWS::AccountId}:table/aws-ddos-fire-extinguisher-${CFNLogicalResourceName}/*
           - Effect: Allow
             Action:
               - 's3:*'
@@ -1445,9 +1491,9 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
-          workGroupName: !Sub 'SRT-WG-${CFNLogicalResourceName}'
-          glueDatabase: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/athenaReports/'
+          workGroupName: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
+          glueDatabase: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
           lookbackExpression: !Ref AutoAthenaLookBackExpression
       Code:
         ZipFile: |
@@ -1558,9 +1604,9 @@ Resources:
       Timeout: 300
       Environment:
         Variables:
-          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/srt/athenaReports/'
-          workGroupName: !Sub 'SRT-WG-${CFNLogicalResourceName}'
-          glueDatabase: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+          s3BasePath: !Sub 's3://${WAFLogsS3Bucket}/athenaReports/'
+          workGroupName: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
+          glueDatabase: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Code:
         ZipFile: |
                   import boto3
@@ -1623,10 +1669,10 @@ Resources:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: Detailed and Formatted Core RBR Data
       Name: "DDOS-FE-detailed"
-      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      WorkGroup: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
       QueryString: !Sub |
                         SELECT
                           tz_window
@@ -1666,16 +1712,16 @@ Resources:
                            , terminatingRuleId
                            , "from_unixtime"(("floor"((timestamp / (1000 * 300))) * 300)) tz_window
                            , action
-                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."aws-srt-waf-logs"
+                           FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."aws-ddos-fire-extinguisher"
                         )
   AthenaNamedQueryByURIIP:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: Count by URI then Source IP over time.
       Name: "DDOS-FE-URIRate"
-      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      WorkGroup: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
       QueryString: !Sub |
                         SELECT
                           "count"(sourceip) as count
@@ -1685,7 +1731,7 @@ Resources:
                         FROM
                           (
                            SELECT *
-                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                           FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."ddos_fe_detailed"
                         )
                         GROUP BY tz_window, sourceip, uri
                         ORDER BY tz_window desc, count DESC
@@ -1693,10 +1739,10 @@ Resources:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: Count by Country then Source IP over time.
       Name: "DDOS-FE-CountryRate"
-      WorkGroup: !Sub 'SRT-WG-${CFNLogicalResourceName}'
+      WorkGroup: !Sub 'DDOS-FE-WG-${CFNLogicalResourceName}'
       QueryString: !Sub |
                         SELECT
                           "count"(sourceip) as count
@@ -1706,7 +1752,7 @@ Resources:
                         FROM
                           (
                            SELECT *
-                           FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                           FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."ddos_fe_detailed"
                         )
                         GROUP BY tz_window, sourceip, country
                         ORDER BY tz_window desc, count DESC
@@ -1714,10 +1760,10 @@ Resources:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: !Sub "Identify Top Client IP to specific URI path based on header: ${SourceIPAddressSource}"
       Name: "DDOS-FE-SourceIPReputations"
-      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      WorkGroup: !Sub "DDOS-FE-WG-${CFNLogicalResourceName}"
       QueryString: !Sub |
                         SELECT if(reputation = array[],
                                  Null,
@@ -1738,7 +1784,7 @@ Resources:
                                               (x LIKE '%Reputation%')
                                               )
                                            ) as reputation
-                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed")
+                            FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."ddos_fe_detailed")
                         WHERE reputation <> null
                         GROUP BY tz_window,sourceip,uri,reputation
                         order by reputation desc, count
@@ -1746,10 +1792,10 @@ Resources:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: !Sub "Identify Top Client IP to specific URI path based on header: ${SourceIPAddressSource}"
       Name: "DDOS-FE-SourceIPAnonymousorHiddenOwner"
-      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      WorkGroup: !Sub "DDOS-FE-WG-${CFNLogicalResourceName}"
       QueryString: !Sub |
                         SELECT if(anonymous = array[],
                                  Null,
@@ -1764,7 +1810,7 @@ Resources:
                                      uri,
                                      tz_window,
                                      filter( labels, x -> x LIKE '%anonymous-ip-list%') as anonymous
-                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed")
+                            FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."ddos_fe_detailed")
                         WHERE anonymous <> Null
                         GROUP BY tz_window,sourceip,uri,anonymous
                         order by anonymous desc, count
@@ -1772,15 +1818,15 @@ Resources:
     DependsOn: AthenaWorkGroup
     Type: AWS::Athena::NamedQuery
     Properties:
-      Database: !Sub 'aws-srt-waf-logs-${CFNLogicalResourceName}'
+      Database: !Sub 'aws-ddos-fire-extinguisher-${CFNLogicalResourceName}'
       Description: !Sub "Identify Bot Traffic"
       Name: "DDOS-FE-BotControlMatch"
-      WorkGroup: !Sub "SRT-WG-${CFNLogicalResourceName}"
+      WorkGroup: !Sub "DDOS-FE-WG-${CFNLogicalResourceName}"
       QueryString: !Sub |
                         select
-                        IF((botSignal = ARRAY[]), null, "split"(botSignal[1], ':')[3]) botSignal,
-                        IF((botCategory = ARRAY[]), null, "split"(botCategory[1], ':')[4]) botCategory,
-                        IF((botName = ARRAY[]), null, "split"(botName[1], ':')[4]) botName,
+                        IF((botSignal = ARRAY[]), null, "split"(botSignal[1], 'bot-control:')[2]) botSignal,
+                        IF((botCategory = ARRAY[]), null, "split"(botCategory[1], 'bot-control:')[2]) botCategory,
+                        IF((botName = ARRAY[]), null, "split"(botName[1], 'bot-control:')[2]) botName,
                         count(sourceip) as count,
                         tz_window,
                         sourceip,
@@ -1798,7 +1844,7 @@ Resources:
                                  tz_window,
                                  filter(labels,
                                  x -> x LIKE 'bot-control%') AS botLabels, action, labels, uri
-                            FROM "aws-srt-waf-logs-${CFNLogicalResourceName}"."ddos_fe_detailed"
+                            FROM "aws-ddos-fire-extinguisher-${CFNLogicalResourceName}"."ddos_fe_detailed"
                         )
                         where botLabels <> array[]
                         )
@@ -2077,14 +2123,44 @@ Resources:
             Resource: "arn:aws:logs:*:*:*"
       Roles:
         - !Ref WAFJSONTransformLambdaRole
-  BotControlTransformCall:
-    Condition: BotControlExcludeFlag
+  BlockAnonymousCall:
+    Condition: AnonymousBlockFlag
     DependsOn: WAFJSONTransformLambdaPolicy
-    Type: Custom::BotControlTransformExclude
+    Type: Custom::BlockAnonymousCall
     Properties:
       ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
-      ExcludeRuleList: !Ref BotControlExcludeCategories
-      TransformType: "ExcludeRulesNameList"
+      LabelMatchStatement: !Ref AnonymousBlockLables
+      TransformType: "ScopeDownNameSpace"
+      LabelRoot: ""
+  AnonymousRateLimitCall:
+    Condition: AnonymousRateLimitFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::ScopeDownNameSpace
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      LabelMatchStatement: !Ref AnonymousRateLimitLabels
+      TransformType: "ScopeDownNameSpace"
+      LabelRoot: "awswaf:managed:aws:anonymous-ip-list:"
+  BlockReputationCall:
+    Condition: ReputationBlockFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::BlockAnonymousCall
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      LabelMatchStatement: !Ref ReputationBlockLabels
+      TransformType: "ScopeDownNameSpace"
+      LabelRoot: ""
+
+  BlockSpecificBotsStatement:
+    Condition: BlockSpecificBotsFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::ScopeDownNameSpace
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      LabelMatchStatement: !Join [",", !Ref BlockSpecificBotList]
+      TransformType: "ScopeDownNameSpace"
+      LabelRoot: "awswaf:managed:bot-control:bot:"
+      LabelRoot: ""
   BotControlScopeDownNamespaceCall:
     Condition: BotControlExcludeFlag
     DependsOn: WAFJSONTransformLambdaPolicy
@@ -2093,6 +2169,16 @@ Resources:
       ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
       LabelMatchStatement: !Ref BotControlRateLimitLabels
       TransformType: "ScopeDownNameSpace"
+      LabelRoot: "awswaf:managed:bot-control:bot:"
+  ReputationScopeDownNamespaceCall:
+    Condition: ReputationRBRLimitLabelsFlag
+    DependsOn: WAFJSONTransformLambdaPolicy
+    Type: Custom::ScopeDownNameSpace
+    Properties:
+      ServiceToken: !GetAtt WAFJSONTransformLambda.Arn
+      LabelMatchStatement: !Ref ReputationRBRLimitLabels
+      TransformType: "ScopeDownNameSpace"
+      LabelRoot: ""
   WAFJSONTransformLambda:
       Type: AWS::Lambda::Function
       Properties:
@@ -2131,17 +2217,19 @@ Resources:
                         except Exception as e:
                             print("send(..) failed executing requests.put(..): " + str(e))
                     def lambda_handler(event, context):
+                        print (json.dumps(event))
                         myJson = []
                         if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
                             for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
                                 myJson.append({"Name": rName})
                         elif event['ResourceProperties']['TransformType'] == 'ScopeDownNameSpace':
+                            LabelRoot = event['ResourceProperties']['LabelRoot']
                             namespaces = event['ResourceProperties']['LabelMatchStatement'].split(",")
                             if len(namespaces) == 1:
                                 myJson = {
                                     "LabelMatchStatement": {
                                       "Scope": "LABEL",
-                                      "Key": "awswaf:managed:bot-control:bot:" + namespaces[0]
+                                      "Key": LabelRoot + namespaces[0]
                                     }
                                 }
                             else:
@@ -2155,7 +2243,7 @@ Resources:
                                     myJson['OrStatement']['Statements'].append(copy.deepcopy({
                                     "LabelMatchStatement": {
                                         "Scope": "LABEL",
-                                        "Key": "awswaf:managed:bot-control:bot:" + nSpace
+                                        "Key": LabelRoot + nSpace
                                         }
                                     }))
                         print (myJson)

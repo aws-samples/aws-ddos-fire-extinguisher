@@ -74,7 +74,7 @@ def lambda_handler(event, context):
                 print (shield_response)
             #If EnableDRTAccess is false, remove all buckets and disable drt access
             else:
-                print ("Disabling DRT role access and S3 bucket permissions") 
+                print ("Disabling DRT role access and S3 bucket permissions")
                 #Get All DRT listed buckets if any
                 protectedBucketList = shield_client.describe_drt_access()
                 if 'LogBucketList' in protectedBucketList:
@@ -116,6 +116,8 @@ def lambda_handler(event, context):
                     print (error.response['Error']['Message'])
         else:
             shield_response = shield_client.disable_proactive_engagement()
+    else:
+        cfnAnswer = "SUCCESS"
     responseData = {}
     responseData['Data'] = "OK"
     cfnresponse.send(event, context, cfnAnswer, responseData, "CustomResourcePhysicalID")

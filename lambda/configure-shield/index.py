@@ -1,4 +1,9 @@
-import json, boto3, botocore, urllib3
+import sys
+sys.path.insert(0,'./lambda/configure-shield')
+import json
+import boto3
+import botocore
+import urllib3
 import cfnresponse
 http = urllib3.PoolManager()
 shield_client = boto3.client('shield')

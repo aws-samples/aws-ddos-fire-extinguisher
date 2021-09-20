@@ -51,8 +51,8 @@ Metadata:
         default: Confirming you want to subscribe to Shield Advanced
       RateBaseRuleAction:
         default: Action for Rate based rules to take when exceeded
-      AuthorizeDRTAccess:
-        default: Create and authorize DRT role for WebACL and AWS WAF log access
+      AuthorizeSRTAccess:
+        default: Create and authorize SRT role for WebACL and AWS WAF log access
       RuleGroup1:
         default: Optional - Existing Rule Group Arn to add to WebACL
       RuleGroup2:
@@ -132,7 +132,7 @@ Metadata:
           - EmergencyContactEmail2
           - EmergencyContactPhone1
           - EmergencyContactPhone2
-          - AuthorizeDRTAccess
+          - AuthorizeSRTAccess
           - CreateHealthChecks
       -
         Label:
@@ -170,7 +170,7 @@ Parameters:
   AthenaReportCreationRate:
     Type: String
     Default: rate(15 minutes)
-  AuthorizeDRTAccess:
+  AuthorizeSRTAccess:
     Type: String
     Default: Disabled
     AllowedValues:
@@ -358,7 +358,7 @@ Conditions:
   CountryRBRUsageFlag: !Equals [!Ref CountryRBRUsage, "Rate Limit these Countries"]
   #Shield Configuration
   #If we should enable SRT Access to Shield Advanced
-  AuthorizeDRTAccessFlag: !Equals [!Ref AuthorizeDRTAccess, 'Enabled']
+  AuthorizeSRTAccessFlag: !Equals [!Ref AuthorizeSRTAccess, 'Enabled']
   #If we should subscribe to Shield Advanced, both parameters must be true
   SubscribeShield: !Equals [!Ref SubscribeAndConfigureShieldAdvanced, 'true']
   #AnonymousIP Flags
@@ -962,6 +962,11 @@ Resources:
       Path: /
   WAFAssociateLambdaPolicy:
     Type: 'AWS::IAM::Policy'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "Wildcard required for CFN, ACM, and ELBv2 actions"
     Properties:
       PolicyName: LocalPolicy
       PolicyDocument:
@@ -978,11 +983,14 @@ Resources:
               - 'cloudfront:UpdateDistribution'
               - 'cloudfront:GetDistribution'
               - 'cloudfront:GetDistributionConfig'
-              - 'wafv2:AssociateWebACL'
               - 'acm:ListCertificates'
-              - 'wafv2:GetWebACL'
               - 'elasticloadbalancing:SetWebACL'
             Resource: '*'
+          - Effect: Allow
+            Action:
+              - 'wafv2:AssociateWebACL'
+              - 'wafv2:GetWebACL'
+            Resource: !GetAtt FireExtinguisherWAFWebACL.Arn
       Roles:
         - !Ref WAFAssociateLambdaRole
   WAFAssociateCall:
@@ -994,6 +1002,15 @@ Resources:
       webACLArn: !GetAtt FireExtinguisherWAFWebACL.Arn
   WAFAssociateLambdaFunction:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt WAFAssociateLambdaRole.Arn
@@ -1090,6 +1107,11 @@ Resources:
       Path: /
   ShieldProtectLambdaPolicy:
     Type: 'AWS::IAM::Policy'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "Wildcard permissions requried for these API calls"
     Properties:
       PolicyName: LocalPolicy
       PolicyDocument:
@@ -1108,7 +1130,7 @@ Resources:
               - 'cloudfront:GetDistribution'
               - 'acm:ListCertificates'
               - 'iam:CreateServiceLinkedRole'
-              - 'shield:DisassociateDRTRole'
+              - 'shield:DisassociateSRTRole'
             Resource: '*'
           - Effect: Allow
             Action:
@@ -1125,6 +1147,15 @@ Resources:
       resourceArns: !Join [",", !Ref ProtectResourceArn]
   ShieldProtectionLambda:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt ShieldProtectLambdaRole.Arn
@@ -1188,6 +1219,15 @@ Resources:
       KinesisStreamArn: !GetAtt WAFdeliverystream.Arn
   WebACLLoggingLambdaFunction:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt ShieldProtectLambdaRole.Arn
@@ -1243,6 +1283,13 @@ Resources:
             cfnrespond(event, context, "SUCCESS", responseData, "ShieldProtection")
   WAFLogsS3Bucket:
     Type: 'AWS::S3::Bucket'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W35
+            reason: "Not appropiate for use case, likely block users from access when speed is critical"
+          - id: W41
+            reason: "Not appropiate for use case, likely block users from access when speed is critical"
     DeletionPolicy: Retain
     Properties:
       BucketName: !Sub "${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
@@ -1271,6 +1318,11 @@ Resources:
               - !GetAtt WAFLogsS3Bucket.Arn
   WAFdeliveryRole:
     Type: AWS::IAM::Role
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Appropiate for use case"
     Properties:
       RoleName: !Sub 'WAFLogDeliveryRole-${CFNLogicalResourceName}'
       AssumeRolePolicyDocument:
@@ -1312,8 +1364,14 @@ Resources:
         - !Ref WAFdeliveryRole
   WAFDeliveryLogGroup:
     Type: AWS::Logs::LogGroup
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W84
+            reason: "Not Applicable"
     Properties:
       LogGroupName: !Sub '/aws/${CFNLogicalResourceName}kinesisfirehose'
+      RetentionInDays: 90
   WAFDeliveryLogStream:
     DependsOn: WAFDeliveryLogGroup
     Type: AWS::Logs::LogStream
@@ -1322,6 +1380,11 @@ Resources:
       LogStreamName: !Sub "aws-waf-logs-${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
   WAFdeliverystream:
     Type: AWS::KinesisFirehose::DeliveryStream
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W88
+            reason: "Not Applicable"
     Properties:
       DeliveryStreamName: !Sub "aws-waf-logs-${CFNLogicalResourceName}-${AWS::AccountId}-${AWS::Region}"
       ExtendedS3DestinationConfiguration:
@@ -1442,6 +1505,11 @@ Resources:
       Path: /
   AthenaQueryLambdaPolicy:
     Type: 'AWS::IAM::Policy'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: F4
+            reason: "Wildcard permissions for Athena needed"
     Properties:
       PolicyName: LocalPolicy
       PolicyDocument:
@@ -1449,14 +1517,17 @@ Resources:
         Statement:
           - Effect: Allow
             Action:
+              - 'athena:GetQueryExecution'
+              - 'athena:GetNamedQuery'
+              - 'athena:ListNamedQueries'
+              - 'athena:StartQueryExecution'
+            Resource: !Sub "arn:aws:athena:${AWS::Region}:${AWS::AccountId}:workgroup/${AthenaWorkGroup}"
+          - Effect: Allow
+            Action:
               - 'logs:CreateLogGroup'
               - 'logs:CreateLogStream'
               - 'logs:PutLogEvents'
             Resource: 'arn:aws:logs:*:*:*'
-          - Effect: Allow
-            Action:
-              - 'athena:*'
-            Resource: '*'
           - Effect: Allow
             Action:
               - 'glue:Get*'
@@ -1473,7 +1544,7 @@ Resources:
               - 's3:*'
             Resource:
               - !Sub "${WAFLogsS3Bucket.Arn}/*"
-              - !GetAtt WAFLogsS3Bucket.Arn
+              - !GetAtt "WAFLogsS3Bucket.Arn"
       Roles:
         - !Ref AthenaQueryLambdaRole
   BuildAthenaViewsCall:
@@ -1484,6 +1555,15 @@ Resources:
       DetailedViewQueryId: !Ref AthenaNamedQueryIPDetailed
   AthenaCreateViewsQueryLambda:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt AthenaQueryLambdaRole.Arn
@@ -1597,6 +1677,15 @@ Resources:
                       cfnrespond(event, context, "SUCCESS", responseData, "CreateViewsSuccessful")
   AthenaQueryLambda:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt AthenaQueryLambdaRole.Arn
@@ -1901,6 +1990,15 @@ Resources:
         - !Ref ThirdPartyIPReputationBuilderLambdaRole
   ThirdPartyIPReputationBuilderLambda:
     Type: 'AWS::Lambda::Function'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
     Properties:
       Runtime: python3.8
       Role: !GetAtt ThirdPartyIPReputationBuilderLambdaRole.Arn
@@ -2033,12 +2131,12 @@ Resources:
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource: "arn:aws:logs:*:*:*"
-          - Sid: IAMPassrolltoDRT
+          - Sid: IAMPassrolltoSRT
             Effect: Allow
             Action:
             - iam:PassRole
             Resource: "*"
-          - Sid: CreateAndManageDRTRole
+          - Sid: CreateAndManageSRTRole
             Effect: Allow
             Action:
             - iam:GetRole
@@ -2046,18 +2144,18 @@ Resources:
             - iam:ListAttachedRolePolicies
             - iam:CreateRole
             - iam:AttachRolePolicy
-            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSDRTAccess"
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSSRTAccess"
           - Sid: ShieldAdvancedConfiguration
             Effect: Allow
             Action:
-            - shield:AssociateDRTLogBucket
-            - shield:AssociateDRTRole
+            - shield:AssociateSRTLogBucket
+            - shield:AssociateSRTRole
             - shield:AssociateProactiveEngagementDetails
             - shield:CreateSubscription
-            - shield:DescribeDRTAccess
+            - shield:DescribeSRTAccess
             - shield:DisableProactiveEngagement
-            - shield:DisassociateDRTLogBucket
-            - shield:DisassociateDRTRole
+            - shield:DisassociateSRTLogBucket
+            - shield:DisassociateSRTRole
             - shield:EnableProactiveEngagement
             - shield:UpdateEmergencyContactSettings
             - shield:UpdateSubscription
@@ -2076,24 +2174,13 @@ Resources:
     Type: Custom::ConfigureShieldAdvanced
     Properties:
       ServiceToken: !GetAtt ConfigureShieldLambda.Arn
-      EnabledProactiveEngagement: !If [AuthorizeDRTAccessFlag,'true','false']
-      AuthorizeDRTAccessFlag: !If [AuthorizeDRTAccessFlag,'true','false']
+      EnabledProactiveEngagement: !If [AuthorizeSRTAccessFlag,'true','false']
+      AuthorizeSRTAccessFlag: !If [AuthorizeSRTAccessFlag,'true','false']
       EmergencyContactEmail1: !Ref EmergencyContactEmail1
       EmergencyContactEmail2: !Ref EmergencyContactEmail2
       EmergencyContactPhone1: !Ref EmergencyContactPhone1
       EmergencyContactPhone2: !Ref EmergencyContactPhone2
-      DRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
-  ConfigureShieldLambda:
-      Condition: SubscribeShield
-      Type: AWS::Lambda::Function
-      Properties:
-        Runtime: python3.8
-        Role: !GetAtt ConfigureShieldLambdaRole.Arn
-        Handler: index.lambda_handler
-        Code:
-          S3Bucket: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
-          S3Key: configure-shield/lambda.zip
-
+      SRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
   WAFJSONTransformLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -2180,76 +2267,85 @@ Resources:
       TransformType: "ScopeDownNameSpace"
       LabelRoot: ""
   WAFJSONTransformLambda:
-      Type: AWS::Lambda::Function
-      Properties:
-        Runtime: python3.8
-        Role: !GetAtt WAFJSONTransformLambdaRole.Arn
-        Handler: index.lambda_handler
-        Code:
-          ZipFile: |
-                    import urllib3
-                    import json
-                    import boto3
-                    import botocore
-                    import copy
-                    http = urllib3.PoolManager()
-                    client = boto3.client('wafv2')
-                    def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
-                        responseUrl = event['ResponseURL']
-                        responseBody = {}
-                        responseBody['Status'] = responseStatus
-                        responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
-                        responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
-                        responseBody['StackId'] = event['StackId']
-                        responseBody['RequestId'] = event['RequestId']
-                        responseBody['LogicalResourceId'] = event['LogicalResourceId']
-                        responseBody['NoEcho'] = noEcho
-                        responseBody['Data'] = responseData
-                        json_responseBody = json.dumps(responseBody)
-                        print("Response body:\n" + json_responseBody)
-                        headers = {
-                          'content-type' : '',
-                          'content-length' : str(len(json_responseBody))
-                        }
-                        try:
-                            response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
-                            print("Status code: " + response.reason)
-                        except Exception as e:
-                            print("send(..) failed executing requests.put(..): " + str(e))
-                    def lambda_handler(event, context):
-                        print (json.dumps(event))
-                        myJson = []
-                        if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
-                            for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
-                                myJson.append({"Name": rName})
-                        elif event['ResourceProperties']['TransformType'] == 'ScopeDownNameSpace':
-                            LabelRoot = event['ResourceProperties']['LabelRoot']
-                            namespaces = event['ResourceProperties']['LabelMatchStatement'].split(",")
-                            if len(namespaces) == 1:
-                                myJson = {
-                                    "LabelMatchStatement": {
+    Type: AWS::Lambda::Function
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt WAFJSONTransformLambdaRole.Arn
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+                  import urllib3
+                  import json
+                  import boto3
+                  import botocore
+                  import copy
+                  http = urllib3.PoolManager()
+                  client = boto3.client('wafv2')
+                  def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                      responseUrl = event['ResponseURL']
+                      responseBody = {}
+                      responseBody['Status'] = responseStatus
+                      responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                      responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                      responseBody['StackId'] = event['StackId']
+                      responseBody['RequestId'] = event['RequestId']
+                      responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                      responseBody['NoEcho'] = noEcho
+                      responseBody['Data'] = responseData
+                      json_responseBody = json.dumps(responseBody)
+                      print("Response body:\n" + json_responseBody)
+                      headers = {
+                        'content-type' : '',
+                        'content-length' : str(len(json_responseBody))
+                      }
+                      try:
+                          response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                          print("Status code: " + response.reason)
+                      except Exception as e:
+                          print("send(..) failed executing requests.put(..): " + str(e))
+                  def lambda_handler(event, context):
+                      print (json.dumps(event))
+                      myJson = []
+                      if event['ResourceProperties']['TransformType'] == 'ExcludeRulesNameList':
+                          for rName in event['ResourceProperties']['ExcludeRuleList'].split(","):
+                              myJson.append({"Name": rName})
+                      elif event['ResourceProperties']['TransformType'] == 'ScopeDownNameSpace':
+                          LabelRoot = event['ResourceProperties']['LabelRoot']
+                          namespaces = event['ResourceProperties']['LabelMatchStatement'].split(",")
+                          if len(namespaces) == 1:
+                              myJson = {
+                                  "LabelMatchStatement": {
+                                    "Scope": "LABEL",
+                                    "Key": LabelRoot + namespaces[0]
+                                  }
+                              }
+                          else:
+                              myJson = {
+                                  "OrStatement": {
+                                      "Statements": [
+                                      ]
+                                  }
+                              }
+                              for nSpace in namespaces:
+                                  myJson['OrStatement']['Statements'].append(copy.deepcopy({
+                                  "LabelMatchStatement": {
                                       "Scope": "LABEL",
-                                      "Key": LabelRoot + namespaces[0]
-                                    }
-                                }
-                            else:
-                                myJson = {
-                                    "OrStatement": {
-                                        "Statements": [
-                                        ]
-                                    }
-                                }
-                                for nSpace in namespaces:
-                                    myJson['OrStatement']['Statements'].append(copy.deepcopy({
-                                    "LabelMatchStatement": {
-                                        "Scope": "LABEL",
-                                        "Key": LabelRoot + nSpace
-                                        }
-                                    }))
-                        print (myJson)
-                        responseData = {}
-                        responseData['JSON'] = myJson
-                        cfnrespond(event, context, "SUCCESS", responseData, "TransformJSON")
+                                      "Key": LabelRoot + nSpace
+                                      }
+                                  }))
+                      print (myJson)
+                      responseData = {}
+                      responseData['JSON'] = myJson
+                      cfnrespond(event, context, "SUCCESS", responseData, "TransformJSON")
 
   ConfigureShieldLambdaRole:
     Condition: SubscribeShield
@@ -2268,6 +2364,11 @@ Resources:
   ConfigureShieldLambdaPolicy:
     Condition: SubscribeShield
     Type: 'AWS::IAM::Policy'
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "ShieldAdvanced Does not support resources other than wildcard"
     Properties:
       PolicyName: LambdaPolicy
       PolicyDocument:
@@ -2280,12 +2381,12 @@ Resources:
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource: "arn:aws:logs:*:*:*"
-          - Sid: IAMPassrolltoDRT
+          - Sid: IAMPassrolltoSRT
             Effect: Allow
             Action:
             - iam:PassRole
-            Resource: "*"
-          - Sid: CreateAndManageDRTRole
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSSRTAccess"
+          - Sid: CreateAndManageSRTRole
             Effect: Allow
             Action:
             - iam:GetRole
@@ -2293,28 +2394,23 @@ Resources:
             - iam:ListAttachedRolePolicies
             - iam:CreateRole
             - iam:AttachRolePolicy
-            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSDRTAccess"
+            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/AWSSRTAccess"
           - Sid: ShieldAdvancedConfiguration
             Effect: Allow
             Action:
-            - shield:AssociateDRTLogBucket
-            - shield:AssociateDRTRole
+            - shield:AssociateSRTLogBucket
+            - shield:AssociateSRTRole
             - shield:AssociateProactiveEngagementDetails
             - shield:CreateSubscription
-            - shield:DescribeDRTAccess
+            - shield:DescribeSRTAccess
             - shield:DisableProactiveEngagement
-            - shield:DisassociateDRTLogBucket
-            - shield:DisassociateDRTRole
+            - shield:DisassociateSRTLogBucket
+            - shield:DisassociateSRTRole
             - shield:EnableProactiveEngagement
             - shield:UpdateEmergencyContactSettings
             - shield:UpdateSubscription
             Resource: "*"
-          - Sid: ShieldAdvancedS3Configuration
-            Effect: Allow
-            Action:
-            - s3:PutBucketPolicy
-            - s3:GetBucketPolicy
-            Resource: "*"
+
       Roles:
         - !Ref ConfigureShieldLambdaRole
   ConfigureShieldCall:
@@ -2323,24 +2419,32 @@ Resources:
     Type: Custom::ConfigureShieldAdvanced
     Properties:
       ServiceToken: !GetAtt ConfigureShieldLambda.Arn
-      EnabledProactiveEngagement: !If [AuthorizeDRTAccessFlag,'true','false']
-      AuthorizeDRTAccessFlag: !If [AuthorizeDRTAccessFlag,'true','false']
+      EnabledProactiveEngagement: !If [AuthorizeSRTAccessFlag,'true','false']
+      AuthorizeSRTAccessFlag: !If [AuthorizeSRTAccessFlag,'true','false']
       EmergencyContactEmail1: !Ref EmergencyContactEmail1
       EmergencyContactEmail2: !Ref EmergencyContactEmail2
       EmergencyContactPhone1: !Ref EmergencyContactPhone1
       EmergencyContactPhone2: !Ref EmergencyContactPhone2
-      DRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
+      SRTS3LogBucket: !GetAtt WAFLogsS3Bucket.Arn
   ConfigureShieldLambda:
-      Condition: SubscribeShield
-      Type: AWS::Lambda::Function
-      Properties:
-        Runtime: python3.8
-        Role: !GetAtt ConfigureShieldLambdaRole.Arn
-        Handler: index.lambda_handler
-        Code:
-          S3Bucket: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
-          S3Key: configure-shield/lambda.zip
-
+    Condition: SubscribeShield
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt ConfigureShieldLambdaRole.Arn
+      Handler: lambda/configure-shield/index.lambda_handler
+      Code:
+        S3Bucket: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
+        S3Key: lambda.zip
   EstablishHealthChecksLambdaRole:
     Condition: SubscribeShield
     Type: AWS::IAM::Role
@@ -2358,24 +2462,35 @@ Resources:
   EstablishHealthChecksLambdaPolicy:
     Condition: SubscribeShield
     DependsOn: ConfigureShieldCall
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W12
+            reason: "Permissions in place, cfn_nag not parsing correctly"
     Type: 'AWS::IAM::Policy'
     Properties:
       PolicyName: LambdaPolicy
       PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Sid: CloudWatchLogs
-            Effect: Allow
+          - Effect: Allow
             Action:
               - "logs:CreateLogGroup"
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource: "arn:aws:logs:*:*:*"
-          - Sid: CloudFormationAndResources
-            Effect: Allow
+          - Effect: Allow
             Action:
-            - cloudformation:*
-            - "*"
+            - cloudformation:Describe*
+            - cloudformation:CreateStack
+            - cloudformation:UpdateStack
+            - cloudformation:DeleteStack
+            Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*Auto-HealthChecks/*"
+          - Effect: Allow
+            Action:
+            - cloudwatch:DescribeAlarms
+            - cloudwatch:PutMetricAlarm
+            - cloudformation:List*
             Resource: "*"
       Roles:
         - !Ref EstablishHealthChecksLambdaRole
@@ -2387,126 +2502,136 @@ Resources:
       ServiceToken: !GetAtt EstablishHealthChecksLambda.Arn
       ResourceArnList: !Ref ProtectResourceArn
   EstablishHealthChecksLambda:
-      Condition: SubscribeShield
-      Type: AWS::Lambda::Function
-      Properties:
-        Runtime: python3.8
-        Role: !GetAtt EstablishHealthChecksLambdaRole.Arn
-        Handler: index.lambda_handler
-        Environment:
-          Variables:
-            BucketName: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
-        Code:
-          ZipFile: |
-                    import boto3
-                    import os
-                    import urllib3
-                    import botocore
-                    import json
-                    bucketName = os.environ['BucketName']
-                    cloudformation_client = boto3.client('cloudformation')
-                    cloudfront_client = boto3.client('cloudfront')
-                    elbv2_client = boto3.client('elbv2')
-                    http = urllib3.PoolManager()
-                    def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
-                        responseUrl = event['ResponseURL']
-                        responseBody = {}
-                        responseBody['Status'] = responseStatus
-                        responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
-                        responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
-                        responseBody['StackId'] = event['StackId']
-                        responseBody['RequestId'] = event['RequestId']
-                        responseBody['LogicalResourceId'] = event['LogicalResourceId']
-                        responseBody['NoEcho'] = noEcho
-                        responseBody['Data'] = responseData
-                        json_responseBody = json.dumps(responseBody)
-                        print("Response body:\n" + json_responseBody)
-                        headers = {
-                            'content-type' : '',
-                            'content-length' : str(len(json_responseBody))
-                        }
-                        try:
-                            response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
-                            print("Status code: " + response.reason)
-                        except Exception as e:
-                            print("send(..) failed executing requests.put(..): " + str(e))
-                    def lambda_handler(event, context):
-                        print (event)
-                        responseData = {}
-                        resourceArns = event['ResourceProperties']['ResourceArnList']
-                        for resource in resourceArns:
-                            resourceType = resource.split(":")[2]
-                            if resourceType == 'cloudfront':
-                                stackName = resource.split('/')[1] + "-DDOS-FE-Auto-HealthChecks"
-                                templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/cf_health_check.yaml"
-                                probeFQDN = cloudfront_client.get_distribution(
-                                        Id=resource.split('/')[1]
-                                    )['Distribution']['DomainName']
-                                parameters = [
-                                        {
-                                            'ParameterKey': 'CFArn',
-                                            'ParameterValue': resource
-                                        },
-                                        {
-                                            'ParameterKey': 'probeFQDN',
-                                            'ParameterValue': probeFQDN
-                                        },
-                                    ]
-                            elif resourceType == 'elasticloadbalancing':
-                                if resource.split('/')[1] == "app":
-                                    stackName = resource.split('/')[2] + "-DDOS-FE-Auto-HealthChecks"
-                                    templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/alb_health_check.yaml"
-                                    probeFQDN = elbv2_client.describe_load_balancers(
-                                        LoadBalancerArns=[resource])['LoadBalancers'][0]['DNSName']
-                                    parameters = [
-                                            {
-                                                'ParameterKey': 'ALBArn',
-                                                'ParameterValue': resource
-                                            },
-                                            {
-                                                'ParameterKey': 'probeFQDN',
-                                                'ParameterValue': probeFQDN
-                                            },
-                                        ]
-                            print (parameters)
-                            if event['RequestType'] == 'Create':
-                                try:
-                                    cloudformation_client.create_stack(
-                                        StackName=stackName,
-                                        TemplateURL=templateURL,
-                                        Parameters=parameters,
-                                        Capabilities=[
-                                            'CAPABILITY_IAM','CAPABILITY_NAMED_IAM','CAPABILITY_AUTO_EXPAND',
-                                        ]
-                                    )
-                                except botocore.exceptions.ClientError as error:
-                                    if error.response['Error']['Code'] == 'AlreadyExistsException':
-                                        print ("Stack already exists, ok")
-                                    else:
-                                        print ("Error")
-                                        cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
-                                        return()
-                            elif event['RequestType'] == 'Update':
-                                try:
-                                    cloudformation_client.update_stack(
-                                        StackName=stackName,
-                                        TemplateURL=templateURL,
-                                        Parameters=parameters,
-                                        Capabilities=[
-                                            'CAPABILITY_IAM',
-                                            'CAPABILITY_NAMED_IAM',
-                                            'CAPABILITY_AUTO_EXPAND'
-                                        ]
-                                    )
-                                except botocore.exceptions.ClientError as error:
-                                    if (error.response['Error']['Message']) == 'No updates are to be performed.':
-                                        print ("NoUpdates, OK")
-                                    else:
-                                        print ((error.response['Error']['Message']))
-                                        cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
-                                        return()
-                            elif event['RequestType'] == 'Delete':
-                                cloudformation_client.delete_stack(
-                                    StackName=stackName
-                                    )
-                        cfnrespond(event, context, "SUCCESS", responseData, "SUCCESS")
+    Condition: SubscribeShield
+    Type: AWS::Lambda::Function
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W58
+            reason: "Permissions granted, CFN_Nag not parsing correctly?"
+          - id: W89
+            reason: "Not applicable for use case"
+          - id: W92
+            reason: "Not applicable for use case"
+
+    Properties:
+      Runtime: python3.8
+      Role: !GetAtt EstablishHealthChecksLambdaRole.Arn
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          BucketName: !Sub "${Prefix}-${AWS::AccountId}-${AWS::Region}"
+      Code:
+        ZipFile: |
+                  import boto3
+                  import os
+                  import urllib3
+                  import botocore
+                  import json
+                  bucketName = os.environ['BucketName']
+                  cloudformation_client = boto3.client('cloudformation')
+                  cloudfront_client = boto3.client('cloudfront')
+                  elbv2_client = boto3.client('elbv2')
+                  http = urllib3.PoolManager()
+                  def cfnrespond(event, context, responseStatus, responseData, physicalResourceId=None, noEcho=False):
+                      responseUrl = event['ResponseURL']
+                      responseBody = {}
+                      responseBody['Status'] = responseStatus
+                      responseBody['Reason'] = 'See the details in CloudWatch Log Stream: ' + context.log_stream_name
+                      responseBody['PhysicalResourceId'] = physicalResourceId or context.log_stream_name
+                      responseBody['StackId'] = event['StackId']
+                      responseBody['RequestId'] = event['RequestId']
+                      responseBody['LogicalResourceId'] = event['LogicalResourceId']
+                      responseBody['NoEcho'] = noEcho
+                      responseBody['Data'] = responseData
+                      json_responseBody = json.dumps(responseBody)
+                      print("Response body:\n" + json_responseBody)
+                      headers = {
+                          'content-type' : '',
+                          'content-length' : str(len(json_responseBody))
+                      }
+                      try:
+                          response = http.request('PUT',responseUrl,body=json_responseBody.encode('utf-8'),headers=headers)
+                          print("Status code: " + response.reason)
+                      except Exception as e:
+                          print("send(..) failed executing requests.put(..): " + str(e))
+                  def lambda_handler(event, context):
+                      print (event)
+                      responseData = {}
+                      resourceArns = event['ResourceProperties']['ResourceArnList']
+                      for resource in resourceArns:
+                          resourceType = resource.split(":")[2]
+                          if resourceType == 'cloudfront':
+                              stackName = resource.split('/')[1] + "-DDOS-FE-Auto-HealthChecks"
+                              templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/cf_health_check.yaml"
+                              probeFQDN = cloudfront_client.get_distribution(
+                                      Id=resource.split('/')[1]
+                                  )['Distribution']['DomainName']
+                              parameters = [
+                                      {
+                                          'ParameterKey': 'CFArn',
+                                          'ParameterValue': resource
+                                      },
+                                      {
+                                          'ParameterKey': 'probeFQDN',
+                                          'ParameterValue': probeFQDN
+                                      },
+                                  ]
+                          elif resourceType == 'elasticloadbalancing':
+                              if resource.split('/')[1] == "app":
+                                  stackName = resource.split('/')[2] + "-DDOS-FE-Auto-HealthChecks"
+                                  templateURL = "https://" + bucketName + ".s3.amazonaws.com/cfn/alb_health_check.yaml"
+                                  probeFQDN = elbv2_client.describe_load_balancers(
+                                      LoadBalancerArns=[resource])['LoadBalancers'][0]['DNSName']
+                                  parameters = [
+                                          {
+                                              'ParameterKey': 'ALBArn',
+                                              'ParameterValue': resource
+                                          },
+                                          {
+                                              'ParameterKey': 'probeFQDN',
+                                              'ParameterValue': probeFQDN
+                                          },
+                                      ]
+                          print (parameters)
+                          if event['RequestType'] == 'Create':
+                              try:
+                                  cloudformation_client.create_stack(
+                                      StackName=stackName,
+                                      TemplateURL=templateURL,
+                                      Parameters=parameters,
+                                      Capabilities=[
+                                          'CAPABILITY_IAM','CAPABILITY_NAMED_IAM','CAPABILITY_AUTO_EXPAND',
+                                      ]
+                                  )
+                              except botocore.exceptions.ClientError as error:
+                                  if error.response['Error']['Code'] == 'AlreadyExistsException':
+                                      print ("Stack already exists, ok")
+                                  else:
+                                      print ("Error")
+                                      cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
+                                      return()
+                          elif event['RequestType'] == 'Update':
+                              try:
+                                  cloudformation_client.update_stack(
+                                      StackName=stackName,
+                                      TemplateURL=templateURL,
+                                      Parameters=parameters,
+                                      Capabilities=[
+                                          'CAPABILITY_IAM',
+                                          'CAPABILITY_NAMED_IAM',
+                                          'CAPABILITY_AUTO_EXPAND'
+                                      ]
+                                  )
+                              except botocore.exceptions.ClientError as error:
+                                  if (error.response['Error']['Message']) == 'No updates are to be performed.':
+                                      print ("NoUpdates, OK")
+                                  else:
+                                      print ((error.response['Error']['Message']))
+                                      cfnrespond(event, context, "FAILED", responseData, (error.response['Error']['Message']))
+                                      return()
+                          elif event['RequestType'] == 'Delete':
+                              cloudformation_client.delete_stack(
+                                  StackName=stackName
+                                  )
+                      cfnrespond(event, context, "SUCCESS", responseData, "SUCCESS")

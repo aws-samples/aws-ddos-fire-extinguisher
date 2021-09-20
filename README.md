@@ -6,15 +6,13 @@ Learn how to apply AWS DDoS protection and best practices in minutes with DDoSFi
 
 ## Build zip artifacts
 ### Linux
-> zip -m ./dist/configure-shield/lambda.zip ./lambda/configure-shield/*
-> zip -m ./dist/auto-rbr-generate/lambda.zip ./lambda/auto-rbr-generate/*
+> zip -m ./lambda/lambda.zip ./lambda/*
 
 ### Create s3 bucket - If needed
 
 > aws s3 mb s3://ddos-fire-extinguisher-\<AWSACCOUNTID\>-us-east-1
 ### Upload zip to s3
-> aws s3 cp ./dist/configure-shield/lambda.zip s3://ddos-fire-extinguisher-\<AWSACCOUNTID\>-us-east-1/configure-shield/lambda.zip --recursive --acl bucket-owner-full-control
-> aws s3 cp ./dist/auto-rbr-generate/lambda.zip s3://ddos-fire-extinguisher-\<AWSACCOUNTID\>-us-east-1/auto-rbr-generate/lambda.zip --recursive --acl bucket-owner-full-control
+> aws s3 cp ./dist/configure-shield/lambda.zip s3://ddos-fire-extinguisher-\<AWSACCOUNTID\>-us-east-1/lambda.zip --recursive --acl bucket-owner-full-control
 
 ### Upload cfn content to S3
 
@@ -36,5 +34,5 @@ Learn how to apply AWS DDoS protection and best practices in minutes with DDoSFi
 - Phone Number for contact 1, must be format +15555555555 where 1 represents country code followed by 10 digit phone number
 - Phone Number for contact 2, must be format +15555555555 where 1 represents country code followed by 10 digit phone number
 
-## If you have not already subscribed, confirm you REALLY want to subscribe, if your organization does not already have Shield Advanced, you will be billed the base $3,000 fee for Shield Advanced plus usage 
+## If you have not already subscribed, confirm you REALLY want to subscribe, if your organization does not already have Shield Advanced, you will be billed the base $3,000 fee for Shield Advanced plus usage
 - Confirming you want to subscribe to Shield Advanced ***Update to True***

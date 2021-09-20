@@ -34,5 +34,6 @@ Learn how to apply AWS DDoS protection and best practices in minutes with DDoSFi
 - Phone Number for contact 1, must be format +15555555555 where 1 represents country code followed by 10 digit phone number
 - Phone Number for contact 2, must be format +15555555555 where 1 represents country code followed by 10 digit phone number
 
-## If you have not already subscribed, confirm you REALLY want to subscribe, if your organization does not already have Shield Advanced, you will be billed the base $3,000 fee for Shield Advanced plus usage
+
+> If you have not already subscribed, confirm you REALLY want to subscribe, if your organization does not already have Shield Advanced, you will be billed the base $3,000 fee for Shield Advanced plus usage
 - Confirming you want to subscribe to Shield Advanced ***Update to True***

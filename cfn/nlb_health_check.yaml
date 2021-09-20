@@ -2,34 +2,33 @@
 AWSTemplateFormatVersion: 2010-09-09
 Parameters:
   NLBArn:
-      Type: String
-      #Default: arn:aws:elasticloadbalancing:us-east-1:936721456389:loadbalancer/net/nlb1/ca961a00df38a138
+    Type: String
   probeFQDN:
-      Type: String
-      Description: DNS name for ALB, this can be a custom DNS name or the AWS provided name
+    Type: String
+    Description: DNS name for ALB, this can be a custom DNS name or the AWS provided name
   probeSearchString:
-      Type: String
-      Default: ''
+    Type: String
+    Default: ''
   probeResourcePath:
-      Type: String 
-      Default: <na>
-      Description: Optional - Specify for Route 53 Probe health check to target a specific path other than the root site
+    Type: String 
+    Default: <na>
+    Description: Optional - Specify for Route 53 Probe health check to target a specific path other than the root site
   probeType:
-      Type: String
-      Default: TCP
-      AllowedValues:
-          - HTTPS
-          - HTTP
-          - HTTPSTRMATCH
-          - HTTPSSTRMATCH
-          - TCP
+    Type: String
+    Default: TCP
+    AllowedValues:
+      - HTTPS
+      - HTTP
+      - HTTPSTRMATCH
+      - HTTPSSTRMATCH
+      - TCP
   probePort:
-      Type: String
-      Default: <na>
+    Type: String
+    Default: <na>
   probeHealthCheckRegions:
-      Type: CommaDelimitedList
-      Default: us-east-1,us-west-2,eu-west-1
-      Description: "Comma separated list of regions to complete Route 53 health checks from list of us-east-1, us-west-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2, ap-northeast-1, sa-east-1"
+    Type: CommaDelimitedList
+    Default: us-east-1,us-west-2,eu-west-1
+    Description: "Comma separated list of regions to complete Route 53 health checks from list of us-east-1, us-west-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2, ap-northeast-1, sa-east-1"
   SNSTopicNotifications:
     Type: String
     Default: <na>
@@ -104,26 +103,31 @@ Mappings:
       "HTTPSSTRMATCH": True
       "HTTPSTRMATCH": False
 Resources:
-    DDOSAlarm:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [DDosDetected, !Select [2,!Split ["/",!Ref NLBArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: DDoSDetected
-            Namespace: AWS/DDoSProtection
-            Statistic: Sum
-            Dimensions:
-            - Name: ResourceArn
-              Value: !Ref NLBArn
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: 1
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric1HealthCheck:
+  DDOSAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [DDosDetected, !Select [2,!Split ["/",!Ref NLBArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: DDoSDetected
+      Namespace: AWS/DDoSProtection
+      Statistic: Sum
+      Dimensions:
+      - Name: ResourceArn
+        Value: !Ref NLBArn
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  Metric1HealthCheck:
       Type: 'AWS::Route53::HealthCheck'
       Properties: 
         HealthCheckConfig:
@@ -134,114 +138,129 @@ Resources:
         HealthCheckTags:
         - Key: Name
           Value: !Join ["-", [!Ref Metric1Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-    Alarm1:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric1Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: !Ref Metric1Name
-            Namespace: AWS/NetworkELB
-            Statistic: !Ref Metric1Statistic
-            Dimensions:
-            - Name: ResourceArn
-              Value: !Ref NLBArn
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric1Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric2HealthCheck: 
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CLOUDWATCH_METRIC
-          AlarmIdentifier:
-            Region: !Ref AWS::Region
-            Name: !Ref Alarm2
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", [!Ref Metric2Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-    Alarm2:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric2Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: !Ref Metric2Name
-            Namespace: AWS/NetworkELB
-            Statistic: !Ref Metric2Statistic
-            Dimensions:
-            - Name: ResourceArn
-              Value: !Ref NLBArn
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric2Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric3HealthCheck:
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CLOUDWATCH_METRIC
-          AlarmIdentifier:
-            Region: !Ref AWS::Region
-            Name: !Ref Alarm3
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", [!Ref Metric3Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-    Alarm3:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric3Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: !Ref Metric3Name
-            Namespace: AWS/NetworkELB
-            Statistic: !Ref Metric3Statistic
-            Dimensions:
-            - Name: ResourceArn
-              Value: !Ref NLBArn
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric3Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    ProbeHealthCheck: 
-      Type: AWS::Route53::HealthCheck
-      Properties: 
-        HealthCheckConfig:
-            Type: !FindInMap [ProbeMap, "probeTypeMap", !Ref probeType]
-            ResourcePath: !If [ProbePathFlag, !Ref probeResourcePath, !Ref AWS::NoValue]
-            FullyQualifiedDomainName: !Ref probeFQDN
-            SearchString: !If [SearchStringFlag, !Ref probeSearchString, !Ref AWS::NoValue]
-            Port: !If [probePortFlag,!Ref probePort,!FindInMap [ProbeMap,"Port", !Ref probeType]]
-            EnableSNI: !FindInMap [ProbeMap, "SNIEnabled", !Ref probeType]
-            Regions:
-              !Ref probeHealthCheckRegions
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", ["Probe", !Select [2,!Split ["/",!Ref NLBArn]]]]
-    CalculatedHealthCheck: 
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CALCULATED
-          HealthThreshold: 3
-          ChildHealthChecks:
-          - !Ref Metric1HealthCheck
-          - !Ref Metric2HealthCheck
-          - !Ref Metric3HealthCheck
-          - !Ref ProbeHealthCheck
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", ["CalculatedHC", !Select [2,!Split ["/",!Ref NLBArn]]]]
+  Alarm1:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric1Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: !Ref Metric1Name
+      Namespace: AWS/NetworkELB
+      Statistic: !Ref Metric1Statistic
+      Dimensions:
+      - Name: ResourceArn
+        Value: !Ref NLBArn
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric1Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  Metric2HealthCheck: 
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CLOUDWATCH_METRIC
+        AlarmIdentifier:
+          Region: !Ref AWS::Region
+          Name: !Ref Alarm2
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", [!Ref Metric2Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
+  Alarm2:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric2Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: !Ref Metric2Name
+      Namespace: AWS/NetworkELB
+      Statistic: !Ref Metric2Statistic
+      Dimensions:
+      - Name: ResourceArn
+        Value: !Ref NLBArn
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric2Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  Metric3HealthCheck:
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CLOUDWATCH_METRIC
+        AlarmIdentifier:
+          Region: !Ref AWS::Region
+          Name: !Ref Alarm3
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", [!Ref Metric3Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
+  Alarm3:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric3Name, !Select [2,!Split ["/",!Ref NLBArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: !Ref Metric3Name
+      Namespace: AWS/NetworkELB
+      Statistic: !Ref Metric3Statistic
+      Dimensions:
+      - Name: ResourceArn
+        Value: !Ref NLBArn
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric3Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  ProbeHealthCheck: 
+    Type: AWS::Route53::HealthCheck
+    Properties: 
+      HealthCheckConfig:
+          Type: !FindInMap [ProbeMap, "probeTypeMap", !Ref probeType]
+          ResourcePath: Fn::If [ProbePathFlag, !Ref probeResourcePath, !Ref AWS::NoValue]
+          FullyQualifiedDomainName: !Ref probeFQDN
+          SearchString: Fn::If [SearchStringFlag, !Ref probeSearchString, !Ref AWS::NoValue]
+          Port: Fn::If [probePortFlag,!Ref probePort,!FindInMap [ProbeMap,"Port", !Ref probeType]]
+          EnableSNI: !FindInMap [ProbeMap, "SNIEnabled", !Ref probeType]
+          Regions:
+            !Ref probeHealthCheckRegions
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", ["Probe", !Select [2,!Split ["/",!Ref NLBArn]]]]
+  CalculatedHealthCheck: 
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CALCULATED
+        HealthThreshold: 3
+        ChildHealthChecks:
+        - !Ref Metric1HealthCheck
+        - !Ref Metric2HealthCheck
+        - !Ref Metric3HealthCheck
+        - !Ref ProbeHealthCheck
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", ["CalculatedHC", !Select [2,!Split ["/",!Ref NLBArn]]]]
 Outputs:
   CalculatedHealthCheckId:
     Value: !Ref CalculatedHealthCheck

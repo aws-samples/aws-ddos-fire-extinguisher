@@ -99,133 +99,151 @@ Mappings:
       "HTTP": False
       "HTTPSSTRMATCH": True
       "HTTPSTRMATCH": False
-      
 Resources:
-    DDOSAlarm:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [DDosDetected, !Select [1,!Split ["/",!Ref CFArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: DDoSDetected
-            Namespace: AWS/DDoSProtection
-            Statistic: Sum
-            Dimensions:
-            - Name: DistributionId
-              Value: !Select [1,!Split ["/",!Ref CFArn]]
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: 1
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric1HealthCheck:
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CLOUDWATCH_METRIC
-          AlarmIdentifier:
-            Region: !Ref AWS::Region
-            Name: !Ref Alarm1
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", [!Ref Metric1Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-    Alarm1:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric1Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: !Ref Metric1Name
-            Namespace: AWS/CloudFront
-            Statistic: !Ref Metric1Statistic
-            Dimensions:
-            - Name: DistributionId
-              Value: !Select [1,!Split ["/",!Ref CFArn]]
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric1Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric2HealthCheck: 
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CLOUDWATCH_METRIC
-          AlarmIdentifier:
-            Region: !Ref AWS::Region
-            Name: !Ref Alarm2
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", [!Ref Metric2Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-    Alarm2:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric2Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: DDoSDetected
-            Namespace: AWS/DDosProtection
-            Statistic: Sum
-            Dimensions:
-            - Name: DistributionId
-              Value: !Select [1,!Split ["/",!Ref CFArn]]
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric2Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    Metric3HealthCheck:
-      Type: 'AWS::Route53::HealthCheck'
-      Properties: 
-        HealthCheckConfig:
-          Type: CLOUDWATCH_METRIC
-          AlarmIdentifier:
-            Region: !Ref AWS::Region
-            Name: !Ref Alarm3
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", [!Ref Metric3Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-    Alarm3:
-        Type: AWS::CloudWatch::Alarm
-        Properties:
-            AlarmName: !Join ["-", [!Ref Metric3Name, !Select [1,!Split ["/",!Ref CFArn]]]]
-            ActionsEnabled: True
-            AlarmActions:
-            - !If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
-            MetricName: !Ref Metric3Name
-            Namespace: AWS/CloudFront
-            Statistic: !Ref Metric3Statistic
-            Dimensions:
-            - Name: DistributionId
-              Value: !Select [1,!Split ["/",!Ref CFArn]]
-            Period: 60
-            EvaluationPeriods: 20
-            DatapointsToAlarm: 1
-            Threshold: !Ref Metric3Threshold
-            ComparisonOperator: GreaterThanOrEqualToThreshold
-            TreatMissingData: notBreaching
-    ProbeHealthCheck: 
-      Type: AWS::Route53::HealthCheck
-      Properties: 
-        HealthCheckConfig:
-            Type: !FindInMap [ProbeMap, "probeTypeMap", !Ref probeType]
-            ResourcePath: !If [ProbePathFlag, !Ref probeResourcePath, !Ref AWS::NoValue]
-            FullyQualifiedDomainName: !Ref probeFQDN
-            SearchString: !If [SearchStringFlag, !Ref probeSearchString, !Ref AWS::NoValue]
-            Port: !If [probePortFlag,!Ref probePort,!FindInMap [ProbeMap,"Port", !Ref probeType]]
-            EnableSNI: !FindInMap [ProbeMap, "SNIEnabled", !Ref probeType]
-            Regions:
-              !Ref probeHealthCheckRegions
-        HealthCheckTags:
-        - Key: Name
-          Value: !Join ["-", ["Probe", !Select [1,!Split ["/",!Ref CFArn]]]]
-
+  DDOSAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+        AlarmName: !Join ["-", [DDosDetected, !Select [1,!Split ["/",!Ref CFArn]]]]
+        ActionsEnabled: True
+        AlarmActions:
+        - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+        MetricName: DDoSDetected
+        Namespace: AWS/DDoSProtection
+        Statistic: Sum
+        Dimensions:
+        - Name: DistributionId
+          Value: !Select [1,!Split ["/",!Ref CFArn]]
+        Period: 60
+        EvaluationPeriods: 20
+        DatapointsToAlarm: 1
+        Threshold: 1
+        ComparisonOperator: GreaterThanOrEqualToThreshold
+        TreatMissingData: notBreaching
+  Metric1HealthCheck:
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CLOUDWATCH_METRIC
+        AlarmIdentifier:
+          Region: !Ref AWS::Region
+          Name: !Ref Alarm1
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", [!Ref Metric1Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+  Alarm1:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric1Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: !Ref Metric1Name
+      Namespace: AWS/CloudFront
+      Statistic: !Ref Metric1Statistic
+      Dimensions:
+      - Name: DistributionId
+        Value: !Select [1,!Split ["/",!Ref CFArn]]
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric1Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  Metric2HealthCheck: 
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CLOUDWATCH_METRIC
+        AlarmIdentifier:
+          Region: !Ref AWS::Region
+          Name: !Ref Alarm2
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", [!Ref Metric2Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+  Alarm2:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric2Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: DDoSDetected
+      Namespace: AWS/DDosProtection
+      Statistic: Sum
+      Dimensions:
+      - Name: DistributionId
+        Value: !Select [1,!Split ["/",!Ref CFArn]]
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric2Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  Metric3HealthCheck:
+    Type: 'AWS::Route53::HealthCheck'
+    Properties: 
+      HealthCheckConfig:
+        Type: CLOUDWATCH_METRIC
+        AlarmIdentifier:
+          Region: !Ref AWS::Region
+          Name: !Ref Alarm3
+      HealthCheckTags:
+      - Key: Name
+        Value: !Join ["-", [!Ref Metric3Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+  Alarm3:
+    Type: AWS::CloudWatch::Alarm
+    Metadata:
+      cfn_nag:
+        rules_to_suppress:
+          - id: W28
+            reason: "Exact Name is important, Replacement occurs correctly in this configuration"
+    Properties:
+      AlarmName: !Join ["-", [!Ref Metric3Name, !Select [1,!Split ["/",!Ref CFArn]]]]
+      ActionsEnabled: True
+      AlarmActions:
+      - Fn::If [AlarmActionFlag, !Ref SNSTopicNotifications, !Ref AWS::NoValue]
+      MetricName: !Ref Metric3Name
+      Namespace: AWS/CloudFront
+      Statistic: !Ref Metric3Statistic
+      Dimensions:
+      - Name: DistributionId
+        Value: !Select [1,!Split ["/",!Ref CFArn]]
+      Period: 60
+      EvaluationPeriods: 20
+      DatapointsToAlarm: 1
+      Threshold: !Ref Metric3Threshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+  ProbeHealthCheck: 
+    Type: AWS::Route53::HealthCheck
+    Properties: 
+      HealthCheckConfig:
+        Type: !FindInMap [ProbeMap, "probeTypeMap", !Ref probeType]
+        ResourcePath: Fn::If [ProbePathFlag, !Ref probeResourcePath, !Ref AWS::NoValue]
+        FullyQualifiedDomainName: !Ref probeFQDN
+        SearchString: Fn::If [SearchStringFlag, !Ref probeSearchString, !Ref AWS::NoValue]
+        Port: Fn::If [probePortFlag,!Ref probePort,!FindInMap [ProbeMap,"Port", !Ref probeType]]
+        EnableSNI: !FindInMap [ProbeMap, "SNIEnabled", !Ref probeType]
+        Regions:
+          !Ref probeHealthCheckRegions
+    HealthCheckTags:
+    - Key: Name
+      Value: !Join ["-", ["Probe", !Select [1,!Split ["/",!Ref CFArn]]]]
     CalculatedHealthCheck: 
       Type: 'AWS::Route53::HealthCheck'
       Properties: 
@@ -240,7 +258,6 @@ Resources:
         HealthCheckTags:
         - Key: Name
           Value: !Join ["-", ["CalculatedHC", !Select [1,!Split ["/",!Ref CFArn]]]]
-
 Outputs:
   CalculatedHealthCheckId:
     Value: !Ref CalculatedHealthCheck

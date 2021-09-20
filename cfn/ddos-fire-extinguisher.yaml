@@ -2492,14 +2492,6 @@ Resources:
             Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*Auto-HealthChecks/*"
           - Effect: Allow
             Action:
-            - cloudwatch:DescribeAlarms
-            - cloudwatch:PutMetricAlarm
-            - cloudwatch:DeleteAlarm
-            - route53:CreateHealthCheck
-            - route53:DeleteHealthCheck
-            - cloudformation:List*
-            - cloudfront:GetDistribution
-            Action:
             - cloudformation:Describe*
             - cloudformation:CreateStack
             - cloudformation:UpdateStack
@@ -2507,9 +2499,14 @@ Resources:
             Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/*Auto-HealthChecks/*"
           - Effect: Allow
             Action:
+            - cloudformation:List*
+            - cloudfront:GetDistribution
+            - cloudwatch:DeleteAlarms
             - cloudwatch:DescribeAlarms
             - cloudwatch:PutMetricAlarm
-            - cloudformation:List*
+            - route53:ChangeTagsForResource
+            - route53:CreateHealthCheck
+            - route53:DeleteHealthCheck
             Resource: "*"
           - Effect: Allow
             Action:
@@ -2536,10 +2533,6 @@ Resources:
             reason: "Not applicable for use case"
           - id: W92
             reason: "Not applicable for use case"
-<<<<<<< HEAD
-=======
-
->>>>>>> ee031839f386f2396eba822cf0aaaede6837a6f5
     Properties:
       Runtime: python3.8
       Role: !GetAtt EstablishHealthChecksLambdaRole.Arn

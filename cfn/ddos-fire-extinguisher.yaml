@@ -2484,7 +2484,6 @@ Resources:
             - "logs:PutLogEvents"
             Resource: "arn:aws:logs:*:*:*"
           - Effect: Allow
-<<<<<<< HEAD
             Action:
             - cloudformation:Describe*
             - cloudformation:CreateStack
@@ -2500,7 +2499,6 @@ Resources:
             - route53:DeleteHealthCheck
             - cloudformation:List*
             - cloudfront:GetDistribution
-=======
             Action:
             - cloudformation:Describe*
             - cloudformation:CreateStack
@@ -2512,13 +2510,11 @@ Resources:
             - cloudwatch:DescribeAlarms
             - cloudwatch:PutMetricAlarm
             - cloudformation:List*
->>>>>>> ee031839f386f2396eba822cf0aaaede6837a6f5
             Resource: "*"
           - Effect: Allow
             Action:
             - s3:GetObject
             Resource: !Sub "arn:aws:s3:::${Prefix}-${AWS::AccountId}-${AWS::Region}/cfn/*"
-
       Roles:
         - !Ref EstablishHealthChecksLambdaRole
   EstablishHealthChecksCall:

@@ -1927,8 +1927,8 @@ Resources:
                         from
                         (select
                         filter(labels, x -> split(x,':')[2] = 'signal') as botSignal,
-                        filter(labels, x -> split(x,':')[3] = 'category') as botCategory,
-                        filter(labels, x -> split(x,':')[3] = 'name') as botName,
+                        filter(labels, x -> split(x,':')[2] = 'category') as botCategory,
+                        filter(labels, x -> split(x,':')[2] = 'name') as botName,
                         tz_window,
                         sourceip,
                         uri
